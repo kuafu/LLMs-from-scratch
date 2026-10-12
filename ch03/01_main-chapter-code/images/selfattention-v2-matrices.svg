@@ -1,0 +1,491 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="2400" viewBox="0 0 1760 2400" role="img" aria-labelledby="title desc">
+<title id="title">SelfAttention_v2：从输入、权重到上下文输出的矩阵关系</title>
+<desc id="desc">以六个 token、三维输入、二维输出为例，显示三个 Linear 层的权重、查询键值矩阵、注意力分数、逐行 softmax 和上下文加权求和。数值由当前 Notebook 的 SelfAttention_v2 实际计算。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif; } .mono { font-family: Consolas, "Microsoft YaHei", monospace; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker>
+<marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#059669"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#7c3aed"/></marker>
+</defs>
+<rect width="1760" height="2400" fill="#ffffff"/>
+<text x="70" y="76" font-size="46" fill="#111827" font-weight="700" text-anchor="start">SelfAttention_v2</text>
+<text x="570" y="76" font-size="34" fill="#111827" font-weight="600" text-anchor="start">矩阵如何一步步生成上下文</text>
+<text x="70" y="117" font-size="21" fill="#6b7280" font-weight="400" text-anchor="start">单头自注意力  /  6 个 token  /  d_in = 3  /  d_out = 2  /  qkv_bias = False  /  torch.manual_seed(123)</text>
+<rect x="70" y="144" width="1620" height="70" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="98" y="188" font-size="23" fill="#111827" font-weight="600" text-anchor="start">self.W_query 是 Linear 层；self.W_query.weight 才是权重矩阵；self._queries 是计算得到的查询矩阵。</text>
+<rect x="70" y="265" width="420" height="220" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="96" y="303" font-size="25" fill="#111827" font-weight="600" text-anchor="start">读图约定</text>
+<text x="96" y="345" font-size="21" fill="#111827" font-weight="400" text-anchor="start">n = 6：token 数量</text>
+<text x="96" y="380" font-size="21" fill="#111827" font-weight="400" text-anchor="start">d_in = 3：输入特征维度</text>
+<text x="96" y="415" font-size="20" fill="#111827" font-weight="400" text-anchor="start">d_out = 2：Q / K / V 特征维度</text>
+<text x="96" y="453" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">权重是参数；Q / K / V 是中间结果。</text>
+<rect x="570" y="250" width="620" height="270" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="602" y="290" font-size="28" fill="#111827" font-weight="600" text-anchor="start">输入 X = x</text>
+<text x="1155" y="290" font-size="27" fill="#2563eb" font-weight="600" text-anchor="end">6 × 3</text>
+<text x="603" y="338" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t1  Your</text>
+<text x="603" y="366" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t2  journey</text>
+<text x="603" y="394" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t3  starts</text>
+<text x="603" y="422" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t4  with</text>
+<text x="603" y="450" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t5  one</text>
+<text x="603" y="478" font-size="21" fill="#111827" font-weight="400" text-anchor="start" class="mono">t6  step</text>
+<rect x="817" y="317" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="337.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.43</text>
+<rect x="917" y="317" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="337.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.15</text>
+<rect x="1017" y="317" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="337.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.89</text>
+<rect x="817" y="345" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="365.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.55</text>
+<rect x="917" y="345" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="365.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.87</text>
+<rect x="1017" y="345" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="365.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.66</text>
+<rect x="817" y="373" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="393.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.57</text>
+<rect x="917" y="373" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="393.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.85</text>
+<rect x="1017" y="373" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="393.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.64</text>
+<rect x="817" y="401" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="421.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.22</text>
+<rect x="917" y="401" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="421.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.58</text>
+<rect x="1017" y="401" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="421.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.33</text>
+<rect x="817" y="429" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="449.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.77</text>
+<rect x="917" y="429" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="449.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.25</text>
+<rect x="1017" y="429" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="449.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.10</text>
+<rect x="817" y="457" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="867.0" y="477.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.05</text>
+<rect x="917" y="457" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="967.0" y="477.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.80</text>
+<rect x="1017" y="457" width="100" height="28" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1067.0" y="477.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.55</text>
+<rect x="817" y="317" width="300" height="168" rx="4" fill="none" stroke="#9db9f6" stroke-width="1.1"/>
+<text x="602" y="501" font-size="19" fill="#6b7280" font-weight="400" text-anchor="start">每行一个 token；每列一个输入特征。</text>
+<rect x="1270" y="265" width="420" height="220" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="1296" y="303" font-size="25" fill="#111827" font-weight="600" text-anchor="start">同一个 X，三套独立参数</text>
+<text x="1296" y="345" font-size="19" fill="#111827" font-weight="400" text-anchor="start">三个 Linear 层分别生成 Q、K、V。</text>
+<text x="1296" y="380" font-size="19" fill="#111827" font-weight="400" text-anchor="start">每个 token 都使用相同的变换规则。</text>
+<text x="1296" y="415" font-size="21" fill="#111827" font-weight="400" text-anchor="start">投影时，各行独立计算。</text>
+<text x="1296" y="453" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">token 间的信息融合发生在 A @ V。</text>
+<path d="M 880 520 L 880 552" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M 880 552 L 310 552 L 310 590" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+<path d="M 880 552 L 880 590" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+<path d="M 880 552 L 1450 552 L 1450 590" fill="none" stroke="#059669" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+<text x="596" y="543" font-size="19" fill="#6b7280" font-weight="400" text-anchor="middle">共享同一个 X（6 × 3）</text>
+<rect x="70" y="590" width="480" height="470" rx="18" fill="#ffffff" stroke="#96b4f5" stroke-width="1.5"/>
+<rect x="71" y="591" width="478" height="65" rx="17" fill="#eff6ff" stroke="none" stroke-width="0"/>
+<text x="98" y="634" font-size="28" fill="#2563eb" font-weight="600" text-anchor="start">①  Query · 查询 Q</text>
+<text x="98" y="684" font-size="16" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_query = nn.Linear(3, 2, bias=False)</text>
+<text x="98" y="719" font-size="20" fill="#111827" font-weight="600" text-anchor="start" class="mono">Wq = self.W_query.weight</text>
+<text x="519" y="719" font-size="20" fill="#2563eb" font-weight="400" text-anchor="end">2 × 3</text>
+<rect x="212" y="740" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="249.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.235</text>
+<rect x="287" y="740" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="324.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.019</text>
+<rect x="362" y="740" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="399.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.287</text>
+<rect x="212" y="772" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="249.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.218</text>
+<rect x="287" y="772" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="324.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.492</text>
+<rect x="362" y="772" width="75" height="32" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="399.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.423</text>
+<rect x="212" y="740" width="225" height="64" rx="4" fill="none" stroke="#9db9f6" stroke-width="1.1"/>
+<text x="98" y="791" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">可训练</text>
+<text x="310" y="843" font-size="27" fill="#2563eb" font-weight="600" text-anchor="middle" class="mono">Q = X @ Wq.T</text>
+<text x="310" y="872" font-size="20" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3)  @  (3 × 2)  →  (6 × 2)</text>
+<text x="98" y="925" font-size="22" fill="#111827" font-weight="600" text-anchor="start" class="mono">self._queries</text>
+<text x="98" y="962" font-size="19" fill="#111827" font-weight="400" text-anchor="start">用于寻找相关 token</text>
+<text x="98" y="994" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">每行是查询向量 qᵢ</text>
+<text x="98" y="1032" font-size="18" fill="#2563eb" font-weight="400" text-anchor="start">当前输入的结果 · 6 × 2</text>
+<rect x="340" y="892" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.354</text>
+<rect x="428" y="892" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.397</text>
+<rect x="340" y="917" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.302</text>
+<rect x="428" y="917" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.029</text>
+<rect x="340" y="942" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.301</text>
+<rect x="428" y="942" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.023</text>
+<rect x="340" y="967" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.135</text>
+<rect x="428" y="967" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.098</text>
+<rect x="340" y="992" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.205</text>
+<rect x="428" y="992" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.087</text>
+<rect x="340" y="1017" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="384.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.154</text>
+<rect x="428" y="1017" width="88" height="25" fill="#eff6ff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="472.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.150</text>
+<rect x="340" y="892" width="176" height="150" rx="4" fill="none" stroke="#9db9f6" stroke-width="1.1"/>
+<rect x="640" y="590" width="480" height="470" rx="18" fill="#ffffff" stroke="#f5af8a" stroke-width="1.5"/>
+<rect x="641" y="591" width="478" height="65" rx="17" fill="#fff7ed" stroke="none" stroke-width="0"/>
+<text x="668" y="634" font-size="28" fill="#ea580c" font-weight="600" text-anchor="start">①  Key · 键 K</text>
+<text x="668" y="684" font-size="16" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_key = nn.Linear(3, 2, bias=False)</text>
+<text x="668" y="719" font-size="20" fill="#111827" font-weight="600" text-anchor="start" class="mono">Wk = self.W_key.weight</text>
+<text x="1089" y="719" font-size="20" fill="#ea580c" font-weight="400" text-anchor="end">2 × 3</text>
+<rect x="782" y="740" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="819.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.420</text>
+<rect x="857" y="740" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="894.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.459</text>
+<rect x="932" y="740" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="969.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.365</text>
+<rect x="782" y="772" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="819.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.261</text>
+<rect x="857" y="772" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="894.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.213</text>
+<rect x="932" y="772" width="75" height="32" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="969.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.216</text>
+<rect x="782" y="740" width="225" height="64" rx="4" fill="none" stroke="#f6b492" stroke-width="1.1"/>
+<text x="668" y="791" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">可训练</text>
+<text x="880" y="843" font-size="27" fill="#ea580c" font-weight="600" text-anchor="middle" class="mono">K = X @ Wk.T</text>
+<text x="880" y="872" font-size="20" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3)  @  (3 × 2)  →  (6 × 2)</text>
+<text x="668" y="925" font-size="22" fill="#111827" font-weight="600" text-anchor="start" class="mono">self._keys</text>
+<text x="668" y="962" font-size="19" fill="#111827" font-weight="400" text-anchor="start">用于与查询匹配</text>
+<text x="668" y="994" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">每行是键向量 kᵢ</text>
+<text x="668" y="1032" font-size="18" fill="#ea580c" font-weight="400" text-anchor="start">当前输入的结果 · 6 × 2</text>
+<rect x="910" y="892" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.574</text>
+<rect x="998" y="892" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.273</text>
+<rect x="910" y="917" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.871</text>
+<rect x="998" y="917" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.101</text>
+<rect x="910" y="942" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.863</text>
+<rect x="998" y="942" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.106</text>
+<rect x="910" y="967" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.479</text>
+<rect x="998" y="967" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.005</text>
+<rect x="910" y="992" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.474</text>
+<rect x="998" y="992" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.170</text>
+<rect x="910" y="1017" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="954.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.589</text>
+<rect x="998" y="1017" width="88" height="25" fill="#fff7ed" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1042.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.039</text>
+<rect x="910" y="892" width="176" height="150" rx="4" fill="none" stroke="#f6b492" stroke-width="1.1"/>
+<rect x="1210" y="590" width="480" height="470" rx="18" fill="#ffffff" stroke="#87cdb7" stroke-width="1.5"/>
+<rect x="1211" y="591" width="478" height="65" rx="17" fill="#f0fdf4" stroke="none" stroke-width="0"/>
+<text x="1238" y="634" font-size="28" fill="#059669" font-weight="600" text-anchor="start">①  Value · 值 V</text>
+<text x="1238" y="684" font-size="16" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_value = nn.Linear(3, 2, bias=False)</text>
+<text x="1238" y="719" font-size="20" fill="#111827" font-weight="600" text-anchor="start" class="mono">Wv = self.W_value.weight</text>
+<text x="1659" y="719" font-size="20" fill="#059669" font-weight="400" text-anchor="end">2 × 3</text>
+<rect x="1352" y="740" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1389.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.490</text>
+<rect x="1427" y="740" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1464.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.350</text>
+<rect x="1502" y="740" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1539.5" y="762.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.212</text>
+<rect x="1352" y="772" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1389.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.113</text>
+<rect x="1427" y="772" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1464.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.440</text>
+<rect x="1502" y="772" width="75" height="32" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1539.5" y="794.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.378</text>
+<rect x="1352" y="740" width="225" height="64" rx="4" fill="none" stroke="#8ed0bc" stroke-width="1.1"/>
+<text x="1238" y="791" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">可训练</text>
+<text x="1450" y="843" font-size="27" fill="#059669" font-weight="600" text-anchor="middle" class="mono">V = X @ Wv.T</text>
+<text x="1450" y="872" font-size="20" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3)  @  (3 × 2)  →  (6 × 2)</text>
+<text x="1238" y="925" font-size="22" fill="#111827" font-weight="600" text-anchor="start" class="mono">self._values</text>
+<text x="1238" y="962" font-size="19" fill="#111827" font-weight="400" text-anchor="start">提供被融合的内容</text>
+<text x="1238" y="994" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">每行是值向量 vᵢ</text>
+<text x="1238" y="1032" font-size="18" fill="#059669" font-weight="400" text-anchor="start">当前输入的结果 · 6 × 2</text>
+<rect x="1480" y="892" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.452</text>
+<rect x="1568" y="892" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.222</text>
+<rect x="1480" y="917" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.714</text>
+<rect x="1568" y="917" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.196</text>
+<rect x="1480" y="942" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.713</text>
+<rect x="1568" y="942" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.197</text>
+<rect x="1480" y="967" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.381</text>
+<rect x="1568" y="967" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.156</text>
+<rect x="1480" y="992" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.486</text>
+<rect x="1568" y="992" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="1010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.160</text>
+<rect x="1480" y="1017" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1524.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.421</text>
+<rect x="1568" y="1017" width="88" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1612.0" y="1035.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.150</text>
+<rect x="1480" y="892" width="176" height="150" rx="4" fill="none" stroke="#8ed0bc" stroke-width="1.1"/>
+<path d="M 310 1060 L 310 1180" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+<text x="323" y="1144" font-size="20" fill="#2563eb" font-weight="400" text-anchor="start">Q : 6 × 2</text>
+<path d="M 880 1060 L 880 1120 L 530 1120 L 530 1180" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+<text x="649" y="1105" font-size="20" fill="#ea580c" font-weight="400" text-anchor="middle">K 转置 → K.T : 2 × 6</text>
+<path d="M 1450 1060 L 1450 1140 L 1720 1140 L 1720 1860 L 1690 1860" fill="none" stroke="#059669" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+<text x="1480" y="1125" font-size="20" fill="#059669" font-weight="400" text-anchor="start">V : 6 × 2</text>
+<rect x="70" y="1180" width="600" height="410" rx="18" fill="#ffffff" stroke="#fed7aa" stroke-width="1.5"/>
+<text x="98" y="1226" font-size="28" fill="#111827" font-weight="600" text-anchor="start">注意力分数 S</text>
+<text x="98" y="1266" font-size="22" fill="#111827" font-weight="400" text-anchor="start" class="mono">self._attn_scores = Q @ K.T</text>
+<text x="98" y="1298" font-size="21" fill="#6b7280" font-weight="400" text-anchor="start">(6 × 2) @ (2 × 6) → 6 × 6</text>
+<text x="210.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t1</text>
+<text x="283.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t2</text>
+<text x="356.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t3</text>
+<text x="429.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t4</text>
+<text x="502.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t5</text>
+<text x="575.5" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t6</text>
+<text x="156" y="1369.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t1</text>
+<rect x="174" y="1348" width="73" height="30" fill="#f7c3a7" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.311</text>
+<rect x="247" y="1348" width="73" height="30" fill="#f7bc9e" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.348</text>
+<rect x="320" y="1348" width="73" height="30" fill="#f7bc9e" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.347</text>
+<rect x="393" y="1348" width="73" height="30" fill="#fbdccc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.171</text>
+<rect x="466" y="1348" width="73" height="30" fill="#f9d0bb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.235</text>
+<rect x="539" y="1348" width="73" height="30" fill="#fad8c6" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.193</text>
+<text x="156" y="1399.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t2</text>
+<rect x="174" y="1378" width="73" height="30" fill="#fbddcd" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.166</text>
+<rect x="247" y="1378" width="73" height="30" fill="#f9ccb5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.260</text>
+<rect x="320" y="1378" width="73" height="30" fill="#f9ccb5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.258</text>
+<rect x="393" y="1378" width="73" height="30" fill="#fbe0d2" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.145</text>
+<rect x="466" y="1378" width="73" height="30" fill="#fbe1d4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.138</text>
+<rect x="539" y="1378" width="73" height="30" fill="#fadaca" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.179</text>
+<text x="156" y="1429.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t3</text>
+<rect x="174" y="1408" width="73" height="30" fill="#fbdccd" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.167</text>
+<rect x="247" y="1408" width="73" height="30" fill="#f9ccb5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.260</text>
+<rect x="320" y="1408" width="73" height="30" fill="#f9ccb5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.258</text>
+<rect x="393" y="1408" width="73" height="30" fill="#fbe0d3" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.144</text>
+<rect x="466" y="1408" width="73" height="30" fill="#fbe1d4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.139</text>
+<rect x="539" y="1408" width="73" height="30" fill="#fadaca" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.178</text>
+<text x="156" y="1459.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t4</text>
+<rect x="174" y="1438" width="73" height="30" fill="#fdf1eb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.051</text>
+<rect x="247" y="1438" width="73" height="30" fill="#fce7dc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.108</text>
+<rect x="320" y="1438" width="73" height="30" fill="#fce7dc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.106</text>
+<rect x="393" y="1438" width="73" height="30" fill="#fdefe7" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.064</text>
+<rect x="466" y="1438" width="73" height="30" fill="#fdf2ec" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.048</text>
+<rect x="539" y="1438" width="73" height="30" fill="#fdebe2" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.083</text>
+<text x="156" y="1489.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t5</text>
+<rect x="174" y="1468" width="73" height="30" fill="#fbe1d3" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.141</text>
+<rect x="247" y="1468" width="73" height="30" fill="#fad9c7" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.187</text>
+<rect x="320" y="1468" width="73" height="30" fill="#fad9c8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.186</text>
+<rect x="393" y="1468" width="73" height="30" fill="#fce9de" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.099</text>
+<rect x="466" y="1468" width="73" height="30" fill="#fce6db" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.112</text>
+<rect x="539" y="1468" width="73" height="30" fill="#fce5d9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.117</text>
+<text x="156" y="1519.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t6</text>
+<rect x="174" y="1498" width="73" height="30" fill="#fdf2ec" stroke="#ffffff" stroke-width="1.5"/>
+<text x="210.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.048</text>
+<rect x="247" y="1498" width="73" height="30" fill="#fce5d9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="283.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.119</text>
+<rect x="320" y="1498" width="73" height="30" fill="#fce5da" stroke="#ffffff" stroke-width="1.5"/>
+<text x="356.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.117</text>
+<rect x="393" y="1498" width="73" height="30" fill="#fdede5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="429.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.073</text>
+<rect x="466" y="1498" width="73" height="30" fill="#fdf2ec" stroke="#ffffff" stroke-width="1.5"/>
+<text x="502.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.048</text>
+<rect x="539" y="1498" width="73" height="30" fill="#fce9df" stroke="#ffffff" stroke-width="1.5"/>
+<text x="575.5" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.097</text>
+<rect x="174" y="1348" width="438" height="180" rx="4" fill="none" stroke="#f6b492" stroke-width="1.1"/>
+<rect x="174" y="1348" width="438" height="30" rx="3" fill="none" stroke="#ea580c" stroke-width="2.5"/>
+<text x="98" y="1564" font-size="18" fill="#111827" font-weight="400" text-anchor="start">Sᵢⱼ = qᵢ · kⱼ：第 i 个查询与第 j 个键的匹配分数。</text>
+<rect x="730" y="1250" width="270" height="205" rx="16" fill="#faf5ff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="865" y="1288" font-size="23" fill="#7c3aed" font-weight="600" text-anchor="middle">② 缩放与归一化</text>
+<text x="865" y="1325" font-size="27" fill="#111827" font-weight="400" text-anchor="middle" class="mono">S / √d_out</text>
+<text x="865" y="1363" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">softmax(..., dim=-1)</text>
+<text x="865" y="1398" font-size="20" fill="#111827" font-weight="400" text-anchor="middle">逐行沿列方向计算</text>
+<text x="865" y="1433" font-size="21" fill="#7c3aed" font-weight="600" text-anchor="middle">每行权重之和 = 1</text>
+<path d="M 670 1360 L 730 1360" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+<text x="700" y="1347" font-size="19" fill="#ea580c" font-weight="400" text-anchor="middle">S</text>
+<path d="M 1000 1360 L 1070 1360" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
+<text x="1035" y="1347" font-size="19" fill="#7c3aed" font-weight="400" text-anchor="middle">A</text>
+<rect x="1070" y="1180" width="620" height="410" rx="18" fill="#ffffff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="1098" y="1226" font-size="28" fill="#111827" font-weight="600" text-anchor="start">注意力权重 A</text>
+<text x="1098" y="1266" font-size="23" fill="#111827" font-weight="400" text-anchor="start" class="mono">self._attn_weights</text>
+<text x="1098" y="1298" font-size="21" fill="#6b7280" font-weight="400" text-anchor="start">6 × 6：行 i 关注 token j 的权重</text>
+<text x="1212.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t1</text>
+<text x="1288.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t2</text>
+<text x="1364.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t3</text>
+<text x="1440.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t4</text>
+<text x="1516.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t5</text>
+<text x="1592.0" y="1336" font-size="18" fill="#6b7280" font-weight="400" text-anchor="middle" class="mono">t6</text>
+<text x="1156" y="1369.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t1</text>
+<rect x="1174" y="1348" width="76" height="30" fill="#d4bef9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.172</text>
+<rect x="1250" y="1348" width="76" height="30" fill="#cbb0f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.176</text>
+<rect x="1326" y="1348" width="76" height="30" fill="#cbb1f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.176</text>
+<rect x="1402" y="1348" width="76" height="30" fill="#f5effe" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.156</text>
+<rect x="1478" y="1348" width="76" height="30" fill="#e6d9fc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.163</text>
+<rect x="1554" y="1348" width="76" height="30" fill="#f0e8fd" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1369.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.158</text>
+<text x="1156" y="1399.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t2</text>
+<rect x="1174" y="1378" width="76" height="30" fill="#e4d7fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.164</text>
+<rect x="1250" y="1378" width="76" height="30" fill="#cdb4f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.175</text>
+<rect x="1326" y="1378" width="76" height="30" fill="#ceb5f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.175</text>
+<rect x="1402" y="1378" width="76" height="30" fill="#e9defc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.161</text>
+<rect x="1478" y="1378" width="76" height="30" fill="#eae0fc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.160</text>
+<rect x="1554" y="1378" width="76" height="30" fill="#e1d2fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1399.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.165</text>
+<text x="1156" y="1429.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t3</text>
+<rect x="1174" y="1408" width="76" height="30" fill="#e4d6fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.164</text>
+<rect x="1250" y="1408" width="76" height="30" fill="#cdb4f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.175</text>
+<rect x="1326" y="1408" width="76" height="30" fill="#ceb5f8" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.175</text>
+<rect x="1402" y="1408" width="76" height="30" fill="#e9defc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.161</text>
+<rect x="1478" y="1408" width="76" height="30" fill="#eae0fc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.161</text>
+<rect x="1554" y="1408" width="76" height="30" fill="#e1d2fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1429.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.165</text>
+<text x="1156" y="1459.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t4</text>
+<rect x="1174" y="1438" width="76" height="30" fill="#e4d6fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.164</text>
+<rect x="1250" y="1438" width="76" height="30" fill="#d6c2f9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.170</text>
+<rect x="1326" y="1438" width="76" height="30" fill="#d7c3f9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.170</text>
+<rect x="1402" y="1438" width="76" height="30" fill="#e1d2fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.165</text>
+<rect x="1478" y="1438" width="76" height="30" fill="#e5d8fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.163</text>
+<rect x="1554" y="1438" width="76" height="30" fill="#dccbfa" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1459.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.167</text>
+<text x="1156" y="1489.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t5</text>
+<rect x="1174" y="1468" width="76" height="30" fill="#decdfa" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.167</text>
+<rect x="1250" y="1468" width="76" height="30" fill="#d3bcf9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.172</text>
+<rect x="1326" y="1468" width="76" height="30" fill="#d3bdf9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.172</text>
+<rect x="1402" y="1468" width="76" height="30" fill="#e8dcfc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.162</text>
+<rect x="1478" y="1468" width="76" height="30" fill="#e5d8fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.163</text>
+<rect x="1554" y="1468" width="76" height="30" fill="#e3d6fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1489.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.164</text>
+<text x="1156" y="1519.0" font-size="18" fill="#6b7280" font-weight="400" text-anchor="end" class="mono">t6</text>
+<rect x="1174" y="1498" width="76" height="30" fill="#e6dafc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1212.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.162</text>
+<rect x="1250" y="1498" width="76" height="30" fill="#d5c0f9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1288.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.171</text>
+<rect x="1326" y="1498" width="76" height="30" fill="#d6c1f9" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1364.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.171</text>
+<rect x="1402" y="1498" width="76" height="30" fill="#e0d1fb" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1440.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.165</text>
+<rect x="1478" y="1498" width="76" height="30" fill="#e6dafc" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1516.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.162</text>
+<rect x="1554" y="1498" width="76" height="30" fill="#dbc9fa" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1592.0" y="1519.0" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">0.168</text>
+<rect x="1174" y="1348" width="456" height="180" rx="4" fill="none" stroke="#c4a6f7" stroke-width="1.1"/>
+<rect x="1174" y="1348" width="456" height="30" rx="3" fill="none" stroke="#7c3aed" stroke-width="2.5"/>
+<text x="1098" y="1564" font-size="19" fill="#111827" font-weight="400" text-anchor="start">行 = 发起查询的 token；列 = 被关注的 token。</text>
+<path d="M 1380 1590 L 1380 1700" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
+<text x="1394" y="1648" font-size="21" fill="#7c3aed" font-weight="400" text-anchor="start">A : 6 × 6</text>
+<rect x="70" y="1700" width="930" height="340" rx="18" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="100" y="1748" font-size="29" fill="#111827" font-weight="600" text-anchor="start">一行怎样变成上下文？</text>
+<text x="100" y="1790" font-size="24" fill="#111827" font-weight="400" text-anchor="start">以第 1 个 token（Your）为例，取 A 的第 1 行：</text>
+<text x="100" y="1833" font-size="23" fill="#7c3aed" font-weight="400" text-anchor="start" class="mono">a₁ = [0.172, 0.176, 0.176, 0.156, 0.163, 0.158]</text>
+<text x="100" y="1881" font-size="31" fill="#059669" font-weight="600" text-anchor="start">c₁ = a₁₁ v₁ + a₁₂ v₂ + ⋯ + a₁₆ v₆</text>
+<text x="100" y="1920" font-size="23" fill="#111827" font-weight="400" text-anchor="start">把 6 个值向量按关注程度加权，再相加，得到 1 个二维向量。</text>
+<text x="100" y="1963" font-size="24" fill="#111827" font-weight="400" text-anchor="start" class="mono">c₁ = [-0.534, -0.105]    ← context_vec 的第 1 行</text>
+<text x="100" y="2009" font-size="25" fill="#111827" font-weight="600" text-anchor="start">Q / K 决定关注谁；V 提供被融合的内容。</text>
+<rect x="1070" y="1700" width="620" height="340" rx="18" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+<text x="1098" y="1748" font-size="27" fill="#059669" font-weight="600" text-anchor="start">③ Context · 上下文输出 C</text>
+<text x="1098" y="1793" font-size="32" fill="#111827" font-weight="600" text-anchor="start" class="mono">C = A @ V</text>
+<text x="1098" y="1830" font-size="22" fill="#6b7280" font-weight="400" text-anchor="start">(6 × 6) @ (6 × 2) → 6 × 2</text>
+<text x="1098" y="1889" font-size="25" fill="#111827" font-weight="600" text-anchor="start" class="mono">context_vec</text>
+<text x="1098" y="1925" font-size="20" fill="#111827" font-weight="400" text-anchor="start">每行是新的 token 表示</text>
+<text x="1098" y="1960" font-size="19" fill="#111827" font-weight="400" text-anchor="start">融合了其他 token 的内容</text>
+<text x="1098" y="2000" font-size="19" fill="#059669" font-weight="400" text-anchor="start" class="mono">return context_vec</text>
+<rect x="1450" y="1867" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="1885.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.534</text>
+<rect x="1550" y="1867" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="1885.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.105</text>
+<rect x="1450" y="1892" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="1910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.532</text>
+<rect x="1550" y="1892" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="1910.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.108</text>
+<rect x="1450" y="1917" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="1935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.532</text>
+<rect x="1550" y="1917" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="1935.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.108</text>
+<rect x="1450" y="1942" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="1960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.530</text>
+<rect x="1550" y="1942" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="1960.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.108</text>
+<rect x="1450" y="1967" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="1985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.531</text>
+<rect x="1550" y="1967" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="1985.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.107</text>
+<rect x="1450" y="1992" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1500.0" y="2010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.530</text>
+<rect x="1550" y="1992" width="100" height="25" fill="#f0fdf4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="1600.0" y="2010.5" font-size="18" fill="#111827" font-weight="400" text-anchor="middle" class="mono">-0.108</text>
+<rect x="1450" y="1867" width="200" height="150" rx="4" fill="none" stroke="#8ed0bc" stroke-width="1.1"/>
+<rect x="1450" y="1867" width="200" height="25" rx="3" fill="none" stroke="#059669" stroke-width="2.5"/>
+<rect x="70" y="2090" width="1620" height="188" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="98" y="2129" font-size="25" fill="#111827" font-weight="600" text-anchor="start">换成任意维度，关系仍然相同</text>
+<text x="98" y="2170" font-size="27" fill="#111827" font-weight="400" text-anchor="start" class="mono">X (n × d_in) → Q/K/V (n × d_out) → S/A (n × n) → C (n × d_out)</text>
+<text x="98" y="2210" font-size="21" fill="#111827" font-weight="400" text-anchor="start">bias=True 时：Q = X @ Wq.T + bq；偏置 bq 的形状为 (d_out,)，广播到每一行，K / V 同理。</text>
+<text x="98" y="2249" font-size="21" fill="#111827" font-weight="400" text-anchor="start">此处为单头、无因果掩码的 SelfAttention_v2；_queries 等成员用于调试，数值随输入或参数变化。</text>
+<path d="M 80 2320 L 116 2320" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+<text x="128" y="2327" font-size="20" fill="#111827" font-weight="400" text-anchor="start">Q：查询</text>
+<path d="M 310 2320 L 346 2320" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+<text x="358" y="2327" font-size="20" fill="#111827" font-weight="400" text-anchor="start">K：匹配</text>
+<path d="M 540 2320 L 576 2320" fill="none" stroke="#059669" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+<text x="588" y="2327" font-size="20" fill="#111827" font-weight="400" text-anchor="start">V：内容</text>
+<path d="M 770 2320 L 806 2320" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
+<text x="818" y="2327" font-size="20" fill="#111827" font-weight="400" text-anchor="start">A：关注权重</text>
+<text x="1070" y="2327" font-size="19" fill="#6b7280" font-weight="400" text-anchor="start">热图深浅仅在各自矩阵内比较；数值显示 3 位小数。</text>
+<text x="70" y="2370" font-size="17" fill="#6b7280" font-weight="400" text-anchor="start">来源：当前 ch03/01_main-chapter-code/ch03.ipynb 的输入与 SelfAttention_v2；图中数值由该类实际计算。</text>
+</svg>
