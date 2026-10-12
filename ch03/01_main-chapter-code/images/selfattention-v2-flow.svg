@@ -1,0 +1,294 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="2140" viewBox="0 0 1920 2140" role="img" aria-labelledby="title desc">
+<title id="title">SelfAttention_v2：X 与权重、中间矩阵、输出之间的流程关系</title>
+<desc id="desc">输入 X 使用独立的 WQ、WK、WV 权重分别生成 Q、K、V。Q 乘 K 的转置得到分数 S，经缩放与逐行 softmax 得到 A，再与 V 相乘得到 C。每条路径标有示例维度，底部给出只使用基本矩阵的展开公式。</desc>
+<style>text { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; } .mono { font-family: Consolas, "Microsoft YaHei", monospace; }</style>
+<defs>
+<marker id="arrow-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/></marker>
+<marker id="arrow-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/></marker>
+<marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#059669"/></marker>
+<marker id="arrow-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 10 3.5, 0 7" fill="#7c3aed"/></marker>
+</defs>
+<rect width="1920" height="2140" fill="#ffffff"/>
+<path d="M 960 455 L 960 520" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M 960 520 L 495 520 L 495 615" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<path d="M 960 520 L 1105 520 L 1105 615" fill="none" stroke="#ea580c" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path d="M 1105 520 L 1715 520 L 1715 615" fill="none" stroke="#059669" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
+<path d="M 310 657 L 380 657" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="7,5" marker-end="url(#arrow-blue)"/>
+<path d="M 495 700 L 495 785" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<path d="M 920 657 L 990 657" fill="none" stroke="#ea580c" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="7,5" marker-end="url(#arrow-orange)"/>
+<path d="M 1105 700 L 1105 785" fill="none" stroke="#ea580c" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path d="M 1530 657 L 1600 657" fill="none" stroke="#059669" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="7,5" marker-end="url(#arrow-green)"/>
+<path d="M 1715 700 L 1715 785" fill="none" stroke="#059669" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
+<path d="M 495 975 L 495 1130" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<path d="M 1105 975 L 1105 1045 L 795 1045 L 795 1130" fill="none" stroke="#ea580c" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path d="M 1715 975 L 1715 1055 L 1870 1055 L 1870 1540 L 1830 1540" fill="none" stroke="#059669" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
+<path d="M 870 1230 L 980 1230" fill="none" stroke="#ea580c" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path d="M 1280 1230 L 1380 1230" fill="none" stroke="#7c3aed" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+<path d="M 1605 1310 L 1605 1460" fill="none" stroke="#7c3aed" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+<text x="80" y="82" font-size="47" fill="#111827" font-weight="700" text-anchor="start">SelfAttention_v2</text>
+<text x="610" y="82" font-size="39" fill="#111827" font-weight="600" text-anchor="start">从输入 X 到上下文 C</text>
+<text x="80" y="125" font-size="24" fill="#6b7280" font-weight="400" text-anchor="start">单头自注意力 · 无偏置、无因果掩码 · 当前示例：n = 6，d_in = 3，d_out = 2</text>
+<rect x="80" y="153" width="1750" height="62" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="108" y="193" font-size="23" fill="#111827" font-weight="600" text-anchor="start">WQ / WK / WV 表示三个 nn.Linear 层的 .weight；它们是可训练参数，Q / K / V / S / A / C 是当前输入的计算结果。</text>
+<rect x="80" y="275" width="590" height="157" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="106" y="312" font-size="25" fill="#111827" font-weight="600" text-anchor="start">输入、参数与投影结果</text>
+<text x="106" y="349" font-size="22" fill="#111827" font-weight="400" text-anchor="start">X：n × d_in；WQ / WK / WV：d_out × d_in</text>
+<text x="106" y="384" font-size="23" fill="#111827" font-weight="400" text-anchor="start">Q / K / V：n × d_out</text>
+<text x="106" y="417" font-size="20" fill="#6b7280" font-weight="400" text-anchor="start">每个 token 使用相同的投影权重。</text>
+<rect x="800" y="250" width="320" height="205" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="827" y="290" font-size="30" fill="#111827" font-weight="600" text-anchor="start">输入 X</text>
+<rect x="827" y="317" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="317" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="317" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="827" y="335" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="335" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="335" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="827" y="353" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="353" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="353" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="827" y="371" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="371" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="371" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="827" y="389" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="389" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="389" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="827" y="407" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="852" y="407" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="877" y="407" width="23" height="16" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="926" y="338" font-size="24" fill="#111827" font-weight="600" text-anchor="start">n × d_in</text>
+<text x="926" y="377" font-size="28" fill="#2563eb" font-weight="600" text-anchor="start">6 × 3</text>
+<text x="926" y="415" font-size="19" fill="#6b7280" font-weight="400" text-anchor="start">每行一个 token</text>
+<rect x="1220" y="275" width="610" height="157" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="1246" y="312" font-size="25" fill="#111827" font-weight="600" text-anchor="start">token 之间的匹配与融合</text>
+<text x="1246" y="349" font-size="23" fill="#111827" font-weight="400" text-anchor="start">S / A：n × n（当前 6 × 6）</text>
+<text x="1246" y="384" font-size="23" fill="#111827" font-weight="400" text-anchor="start">C：n × d_out（当前 6 × 2）</text>
+<text x="1246" y="417" font-size="20" fill="#6b7280" font-weight="400" text-anchor="start">同一个 X 同时进入三条投影路径。</text>
+<text x="80" y="567" font-size="27" fill="#111827" font-weight="600" text-anchor="start">① 特征投影</text>
+<rect x="80" y="590" width="230" height="140" rx="14" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="98" y="625" font-size="25" fill="#2563eb" font-weight="600" text-anchor="start">WQ · 权重</text>
+<text x="98" y="654" font-size="15" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_query.weight</text>
+<rect x="99" y="674" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="122" y="674" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="145" y="674" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="99" y="691" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="122" y="691" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="145" y="691" width="21" height="15" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="191" y="701" font-size="23" fill="#2563eb" font-weight="600" text-anchor="start">2 × 3</text>
+<text x="345" y="643" font-size="22" fill="#2563eb" font-weight="400" text-anchor="middle" class="mono">.T</text>
+<rect x="380" y="615" width="230" height="85" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="495" y="650" font-size="25" fill="#2563eb" font-weight="600" text-anchor="middle" class="mono">X @ WQ.T</text>
+<text x="495" y="682" font-size="19" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3) @ (3 × 2)</text>
+<text x="509" y="755" font-size="22" fill="#2563eb" font-weight="600" text-anchor="start">Q</text>
+<rect x="345" y="785" width="300" height="190" rx="16" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="368" y="829" font-size="29" fill="#2563eb" font-weight="600" text-anchor="start">Q · 查询</text>
+<rect x="369" y="851" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="851" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="369" y="867" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="867" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="369" y="883" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="883" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="369" y="899" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="899" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="369" y="915" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="915" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="369" y="931" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="393" y="931" width="22" height="14" rx="2" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="436" y="873" font-size="19" fill="#111827" font-weight="400" text-anchor="start" class="mono">self._queries</text>
+<text x="436" y="909" font-size="19" fill="#2563eb" font-weight="600" text-anchor="start">n × d_out = 6 × 2</text>
+<text x="436" y="947" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">寻找相关 token</text>
+<rect x="690" y="590" width="230" height="140" rx="14" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
+<text x="708" y="625" font-size="25" fill="#ea580c" font-weight="600" text-anchor="start">WK · 权重</text>
+<text x="708" y="654" font-size="15" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_key.weight</text>
+<rect x="709" y="674" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="732" y="674" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="755" y="674" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="709" y="691" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="732" y="691" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="755" y="691" width="21" height="15" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="801" y="701" font-size="23" fill="#ea580c" font-weight="600" text-anchor="start">2 × 3</text>
+<text x="955" y="643" font-size="22" fill="#ea580c" font-weight="400" text-anchor="middle" class="mono">.T</text>
+<rect x="990" y="615" width="230" height="85" rx="14" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+<text x="1105" y="650" font-size="25" fill="#ea580c" font-weight="600" text-anchor="middle" class="mono">X @ WK.T</text>
+<text x="1105" y="682" font-size="19" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3) @ (3 × 2)</text>
+<text x="1119" y="755" font-size="22" fill="#ea580c" font-weight="600" text-anchor="start">K</text>
+<rect x="955" y="785" width="300" height="190" rx="16" fill="#ffffff" stroke="#ea580c" stroke-width="1.5"/>
+<text x="978" y="829" font-size="29" fill="#ea580c" font-weight="600" text-anchor="start">K · 键</text>
+<rect x="979" y="851" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="851" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="979" y="867" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="867" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="979" y="883" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="883" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="979" y="899" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="899" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="979" y="915" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="915" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="979" y="931" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1003" y="931" width="22" height="14" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="1046" y="873" font-size="19" fill="#111827" font-weight="400" text-anchor="start" class="mono">self._keys</text>
+<text x="1046" y="909" font-size="19" fill="#ea580c" font-weight="600" text-anchor="start">n × d_out = 6 × 2</text>
+<text x="1046" y="947" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">与查询进行匹配</text>
+<rect x="1300" y="590" width="230" height="140" rx="14" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+<text x="1318" y="625" font-size="25" fill="#059669" font-weight="600" text-anchor="start">WV · 权重</text>
+<text x="1318" y="654" font-size="15" fill="#111827" font-weight="400" text-anchor="start" class="mono">self.W_value.weight</text>
+<rect x="1319" y="674" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1342" y="674" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1365" y="674" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1319" y="691" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1342" y="691" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1365" y="691" width="21" height="15" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="1411" y="701" font-size="23" fill="#059669" font-weight="600" text-anchor="start">2 × 3</text>
+<text x="1565" y="643" font-size="22" fill="#059669" font-weight="400" text-anchor="middle" class="mono">.T</text>
+<rect x="1600" y="615" width="230" height="85" rx="14" fill="#f0fdf4" stroke="#059669" stroke-width="1.5"/>
+<text x="1715" y="650" font-size="25" fill="#059669" font-weight="600" text-anchor="middle" class="mono">X @ WV.T</text>
+<text x="1715" y="682" font-size="19" fill="#6b7280" font-weight="400" text-anchor="middle">(6 × 3) @ (3 × 2)</text>
+<text x="1729" y="755" font-size="22" fill="#059669" font-weight="600" text-anchor="start">V</text>
+<rect x="1565" y="785" width="300" height="190" rx="16" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+<text x="1588" y="829" font-size="29" fill="#059669" font-weight="600" text-anchor="start">V · 值</text>
+<rect x="1589" y="851" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="851" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1589" y="867" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="867" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1589" y="883" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="883" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1589" y="899" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="899" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1589" y="915" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="915" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1589" y="931" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1613" y="931" width="22" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="1656" y="873" font-size="19" fill="#111827" font-weight="400" text-anchor="start" class="mono">self._values</text>
+<text x="1656" y="909" font-size="19" fill="#059669" font-weight="600" text-anchor="start">n × d_out = 6 × 2</text>
+<text x="1656" y="947" font-size="18" fill="#6b7280" font-weight="400" text-anchor="start">提供被融合的内容</text>
+<text x="510" y="1073" font-size="22" fill="#2563eb" font-weight="400" text-anchor="start">Q：6 × 2</text>
+<text x="950" y="1028" font-size="22" fill="#ea580c" font-weight="400" text-anchor="middle">转置 → K.T：2 × 6</text>
+<text x="1731" y="1037" font-size="21" fill="#059669" font-weight="400" text-anchor="start">V：6 × 2</text>
+<rect x="270" y="1130" width="600" height="180" rx="18" fill="#ffffff" stroke="#fed7aa" stroke-width="1.5"/>
+<text x="300" y="1172" font-size="28" fill="#111827" font-weight="600" text-anchor="start">② 分数 S：查询与键的匹配</text>
+<text x="300" y="1216" font-size="30" fill="#ea580c" font-weight="600" text-anchor="start" class="mono">S = Q @ K.T</text>
+<text x="300" y="1254" font-size="22" fill="#6b7280" font-weight="400" text-anchor="start">(6 × 2) @ (2 × 6) → (6 × 6)</text>
+<text x="300" y="1294" font-size="21" fill="#111827" font-weight="400" text-anchor="start">token 两两匹配 · S 的形状为 n × n</text>
+<rect x="770" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1193" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="770" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1205" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="770" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1217" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="770" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1229" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="770" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1241" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="770" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="782" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="794" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="806" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="818" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="830" y="1253" width="10" height="10" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="980" y="1180" width="300" height="100" rx="16" fill="#faf5ff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="1130" y="1217" font-size="24" fill="#7c3aed" font-weight="600" text-anchor="middle">③ 缩放 → softmax</text>
+<text x="1130" y="1255" font-size="25" fill="#111827" font-weight="400" text-anchor="middle" class="mono">S / sqrt(d_out)</text>
+<text x="925" y="1216" font-size="22" fill="#ea580c" font-weight="400" text-anchor="middle">S</text>
+<text x="1330" y="1216" font-size="22" fill="#7c3aed" font-weight="400" text-anchor="middle">A</text>
+<rect x="1380" y="1130" width="450" height="180" rx="18" fill="#ffffff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="1406" y="1172" font-size="28" fill="#7c3aed" font-weight="600" text-anchor="start">A · 注意力权重</text>
+<rect x="1406" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1203" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1406" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1216" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1406" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1229" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1406" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1242" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1406" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1255" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1406" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1419" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1432" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1445" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1458" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1471" y="1268" width="11" height="11" rx="2" fill="#faf5ff" stroke="#7c3aed" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="1510" y="1225" font-size="24" fill="#111827" font-weight="600" text-anchor="start">n × n = 6 × 6</text>
+<text x="1510" y="1262" font-size="20" fill="#111827" font-weight="400" text-anchor="start">每行的权重之和 = 1</text>
+<text x="1406" y="1295" font-size="21" fill="#6b7280" font-weight="400" text-anchor="start">沿最后一维归一化：dim=-1</text>
+<text x="1619" y="1392" font-size="23" fill="#7c3aed" font-weight="400" text-anchor="start">A：6 × 6</text>
+<rect x="80" y="1440" width="1160" height="225" rx="18" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="110" y="1489" font-size="30" fill="#111827" font-weight="600" text-anchor="start">两种变换，分别作用在不同的轴</text>
+<text x="110" y="1535" font-size="24" fill="#111827" font-weight="400" text-anchor="start">X @ WV.T：对每个 token 做特征投影，token 数量 n 保持不变。</text>
+<text x="110" y="1578" font-size="24" fill="#111827" font-weight="400" text-anchor="start">A @ V：在 token 之间加权融合，特征维度 d_out 保持不变。</text>
+<text x="110" y="1628" font-size="25" fill="#111827" font-weight="600" text-anchor="start">得到 A 后，可用结合律写成：C = (A @ X) @ WV.T。</text>
+<rect x="1340" y="1460" width="490" height="190" rx="18" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+<text x="1370" y="1504" font-size="28" fill="#059669" font-weight="600" text-anchor="start">④ 输出 C · 上下文矩阵</text>
+<rect x="1370" y="1526" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1526" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1370" y="1542" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1542" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1370" y="1558" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1558" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1370" y="1574" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1574" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1370" y="1590" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1590" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1370" y="1606" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<rect x="1398" y="1606" width="26" height="14" rx="2" fill="#f0fdf4" stroke="#059669" stroke-opacity="0.38" stroke-width="0.8"/>
+<text x="1460" y="1550" font-size="31" fill="#111827" font-weight="600" text-anchor="start" class="mono">C = A @ V</text>
+<text x="1460" y="1585" font-size="19" fill="#6b7280" font-weight="400" text-anchor="start">(6 × 6) @ (6 × 2) → (6 × 2)</text>
+<text x="1460" y="1624" font-size="21" fill="#059669" font-weight="400" text-anchor="start" class="mono">context_vec · n × d_out</text>
+<rect x="80" y="1740" width="1750" height="230" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="110" y="1787" font-size="31" fill="#111827" font-weight="600" text-anchor="start">把所有中间矩阵展开</text>
+<text x="110" y="1833" font-size="29" fill="#ea580c" font-weight="400" text-anchor="start" class="mono">S = X @ WQ.T @ WK @ X.T</text>
+<text x="110" y="1882" font-size="31" fill="#111827" font-weight="600" text-anchor="start" class="mono">C = softmax_row((X @ WQ.T @ WK @ X.T) / sqrt(d_out)) @ X @ WV.T</text>
+<text x="110" y="1926" font-size="23" fill="#6b7280" font-weight="400" text-anchor="start">softmax_row 对应 torch.softmax(..., dim=-1)；完整计算保留逐行归一化，A 随输入 X 和 WQ / WK 变化。</text>
+<path d="M 88 2030 L 137 2030" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<text x="151" y="2038" font-size="22" fill="#111827" font-weight="400" text-anchor="start">实线：数据变换与传递</text>
+<path d="M 490 2030 L 539 2030" fill="none" stroke="#2563eb" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="7,5" marker-end="url(#arrow-blue)"/>
+<text x="553" y="2038" font-size="22" fill="#111827" font-weight="400" text-anchor="start">虚线：权重参与计算</text>
+<rect x="965" y="2018" width="20" height="20" rx="4" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="998" y="2038" font-size="23" fill="#2563eb" font-weight="600" text-anchor="start">Q</text>
+<rect x="1145" y="2018" width="20" height="20" rx="4" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>
+<text x="1178" y="2038" font-size="23" fill="#ea580c" font-weight="600" text-anchor="start">K</text>
+<rect x="1325" y="2018" width="20" height="20" rx="4" fill="#f0fdf4" stroke="#059669" stroke-width="1.5"/>
+<text x="1358" y="2038" font-size="23" fill="#059669" font-weight="600" text-anchor="start">V</text>
+<rect x="1505" y="2018" width="20" height="20" rx="4" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="1538" y="2038" font-size="23" fill="#7c3aed" font-weight="600" text-anchor="start">A</text>
+<text x="80" y="2095" font-size="20" fill="#6b7280" font-weight="400" text-anchor="start">矩阵小网格用于表示形状；流程对应当前 ch03/01_main-chapter-code/ch03.ipynb 的 SelfAttention_v2。</text>
+</svg>
