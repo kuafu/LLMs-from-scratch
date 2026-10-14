@@ -38,8 +38,62 @@ tensor([[0., 1., 1., 1., 1., 1.],
         [0., 0., 0., 0., 0., 0.]])
 
 
-self._queries.shape: torch.Size([2, 2, 6, 1])
-self._queries:
+_queries1.shape: torch.Size([2, 6, 2])
+_queries1:
+tensor([[[-0.3536,  0.3965],
+         [-0.3021, -0.0289],
+         [-0.3015, -0.0232],
+         [-0.1353, -0.0978],
+         [-0.2052,  0.0870],
+         [-0.1542, -0.1499]],
+
+        [[-0.3536,  0.3965],
+         [-0.3021, -0.0289],
+         [-0.3015, -0.0232],
+         [-0.1353, -0.0978],
+         [-0.2052,  0.0870],
+         [-0.1542, -0.1499]]], grad_fn=<UnsafeViewBackward0>)
+
+_queries2.shape: torch.Size([2, 6, 2, 1])
+_queries2:
+tensor([[[[-0.3536],
+          [ 0.3965]],
+
+         [[-0.3021],
+          [-0.0289]],
+
+         [[-0.3015],
+          [-0.0232]],
+
+         [[-0.1353],
+          [-0.0978]],
+
+         [[-0.2052],
+          [ 0.0870]],
+
+         [[-0.1542],
+          [-0.1499]]],
+
+
+        [[[-0.3536],
+          [ 0.3965]],
+
+         [[-0.3021],
+          [-0.0289]],
+
+         [[-0.3015],
+          [-0.0232]],
+
+         [[-0.1353],
+          [-0.0978]],
+
+         [[-0.2052],
+          [ 0.0870]],
+
+         [[-0.1542],
+          [-0.1499]]]], grad_fn=<ViewBackward0>)
+queries.shape: torch.Size([2, 2, 6, 1])
+queries:
 tensor([[[[-0.3536],
           [-0.3021],
           [-0.3015],
@@ -68,9 +122,8 @@ tensor([[[[-0.3536],
           [-0.0978],
           [ 0.0870],
           [-0.1499]]]], grad_fn=<TransposeBackward0>)
-
-self._keys.shape: torch.Size([2, 2, 6, 1])
-self._keys:
+keys.shape: torch.Size([2, 2, 6, 1])
+keys:
 tensor([[[[-0.5740],
           [-0.8709],
           [-0.8628],
@@ -100,8 +153,8 @@ tensor([[[[-0.5740],
           [ 0.1696],
           [-0.0388]]]], grad_fn=<TransposeBackward0>)
 
-self._values.shape: torch.Size([2, 2, 6, 1])
-self._values:
+values.shape: torch.Size([2, 2, 6, 1])
+values:
 tensor([[[[-0.4519],
           [-0.7142],
           [-0.7127],
@@ -131,8 +184,8 @@ tensor([[[[-0.4519],
           [-0.1597],
           [-0.1501]]]], grad_fn=<TransposeBackward0>)
 
-self._attn_scores.shape: torch.Size([2, 2, 6, 6])
-self._attn_scores:
+attn_scores.shape: torch.Size([2, 2, 6, 6])
+attn_scores:
 tensor([[[[ 0.2029,    -inf,    -inf,    -inf,    -inf,    -inf],
           [ 0.1734,  0.2631,    -inf,    -inf,    -inf,    -inf],
           [ 0.1730,  0.2625,  0.2601,    -inf,    -inf,    -inf],
@@ -162,9 +215,9 @@ tensor([[[[ 0.2029,    -inf,    -inf,    -inf,    -inf,    -inf],
           [ 0.0237,  0.0088,  0.0092,  0.0004,  0.0148,    -inf],
           [-0.0409, -0.0151, -0.0159, -0.0008, -0.0254,  0.0058]]]],
        grad_fn=<MaskedFillBackward0>)
-self._attn_weights.shape: torch.Size([2, 2, 6, 6])
+attn_weights.shape: torch.Size([2, 2, 6, 6])
 
-self._attn_weights:
+attn_weights:
 tensor([[[[1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
           [0.4776, 0.5224, 0.0000, 0.0000, 0.0000, 0.0000],
           [0.3140, 0.3434, 0.3426, 0.0000, 0.0000, 0.0000],
