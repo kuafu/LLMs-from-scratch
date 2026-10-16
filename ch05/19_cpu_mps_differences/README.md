@@ -1,3 +1,3 @@
-# CPU/MPS Discrepancies
+# CPU/MPS 差异
 
-This folder collects examples of where CPU and MPS devices behave differently in PyTorch.
+本文件夹汇集了 PyTorch 中 CPU 与 MPS 设备行为不同的示例。

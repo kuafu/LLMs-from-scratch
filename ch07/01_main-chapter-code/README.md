@@ -1,20 +1,20 @@
-# Chapter 7: Finetuning to Follow Instructions
+# 第 7 章：指令遵循微调
 
-### Main Chapter Code
+### 本章主要代码
 
-- [ch07.ipynb](ch07.ipynb) contains all the code as it appears in the chapter
-- [previous_chapters.py](previous_chapters.py) is a Python module that contains the GPT model we coded and trained in previous chapters, alongside many utility functions, which we reuse in this chapter
-- [gpt_download.py](gpt_download.py) contains the utility functions for downloading the pretrained GPT model weights
-- [exercise-solutions.ipynb](exercise-solutions.ipynb) contains the exercise solutions for this chapter
+- [ch07.ipynb](ch07.ipynb) 包含本章中出现的全部代码
+- [previous_chapters.py](previous_chapters.py) 是一个 Python 模块，其中包含我们在前几章中编写并训练的 GPT 模型，以及本章会复用的许多实用函数
+- [gpt_download.py](gpt_download.py) 包含用于下载预训练 GPT 模型权重的实用函数
+- [exercise-solutions.ipynb](exercise-solutions.ipynb) 包含本章练习题答案
 
 
-### Optional Code
+### 可选代码
 
-- [load-finetuned-model.ipynb](load-finetuned-model.ipynb) is a standalone Jupyter notebook to load the instruction finetuned model we created in this chapter
+- [load-finetuned-model.ipynb](load-finetuned-model.ipynb) 是一个独立的 Jupyter 笔记本，用于加载本章创建的指令微调模型
 
-- [gpt_instruction_finetuning.py](gpt_instruction_finetuning.py) is a standalone Python script to instruction finetune the model as described in the main chapter (think of it as a chapter summary focused on the finetuning parts)
+- [gpt_instruction_finetuning.py](gpt_instruction_finetuning.py) 是一个独立的 Python 脚本，用于按照本章主体内容对模型进行指令微调（可以把它看作聚焦于微调部分的章节摘要）
 
-Usage:
+用法：
 
 ```bash
 python gpt_instruction_finetuning.py
@@ -58,9 +58,9 @@ Responses saved as instruction-data-with-response-standalone.json
 Model saved as gpt2-medium355M-sft-standalone.pth
 ```
 
-- [ollama_evaluate.py](ollama_evaluate.py) is a standalone Python script to evaluate the responses of the finetuned model as described in the main chapter (think of it as a chapter summary focused on the evaluation parts)
+- [ollama_evaluate.py](ollama_evaluate.py) 是一个独立的 Python 脚本，用于按照本章主体内容评估微调模型的响应（可以把它看作聚焦于评估部分的章节摘要）
 
-Usage:
+用法：
 
 ```bash
 python ollama_evaluate.py --file_path instruction-data-with-response-standalone.json
@@ -73,4 +73,4 @@ Number of scores: 110 of 110
 Average score: 51.75
 ```
 
-- [exercise_experiments.py](exercise_experiments.py) is an optional script that implements the exercise solutions; for more details see [exercise-solutions.ipynb](exercise-solutions.ipynb)
+- [exercise_experiments.py](exercise_experiments.py) 是一个实现练习题答案的可选脚本；详情请参阅 [exercise-solutions.ipynb](exercise-solutions.ipynb)

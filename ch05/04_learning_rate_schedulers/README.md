@@ -1,5 +1,5 @@
-# Adding Bells and Whistles to the Training Loop
+# 为训练循环增添实用功能
 
-The main chapter used a relatively simple training function to keep the code readable and fit Chapter 5 within the page limits. Optionally, we can add a linear warm-up, a cosine decay schedule, and gradient clipping to improve the training stability and convergence.
+为了让代码易于阅读，并使第 5 章的内容符合篇幅限制，正文使用了相对简单的训练函数。作为可选改进，我们可以加入线性预热、余弦衰减调度和梯度裁剪，以提高训练稳定性并加快收敛。
 
-You can find the code for this more sophisticated training function in [Appendix D: Adding Bells and Whistles to the Training Loop](../../appendix-D/01_main-chapter-code/appendix-D.ipynb).
+你可以在[附录 D：为训练循环增添实用功能](../../appendix-D/01_main-chapter-code/appendix-D.ipynb)中找到这个更完善的训练函数代码。

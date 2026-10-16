@@ -1,6 +1,6 @@
-# Chapter 5 With Other LLMs
+# 使用其他 LLM 完成本章内容
 
-This folder contains code notebooks that swap in other LLMs (for example, Qwen3 and Llama 3) for GPT-2 in Chapter 5.
+本文件夹包含一些代码笔记本，可在第 5 章中用其他 LLM（例如 Qwen3 和 Llama 3）替换 GPT-2。
 
 
 

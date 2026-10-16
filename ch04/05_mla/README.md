@@ -1,52 +1,52 @@
-# Multi-Head Latent Attention (MLA)
+# 多头潜在注意力（Multi-Head Latent Attention，MLA）
 
-This bonus material illustrates the memory savings when using Multi-Head Latent Attention (MLA) over regular Multi-Head Attention (MHA).
-
-&nbsp;
-## Introduction
-
-In [../04_gqa](../04_gqa), we discussed Grouped-Query Attention (GQA) as a computational-efficiency workaround for MHA. And ablation studies (such as those in the[ original GQA paper](https://arxiv.org/abs/2305.13245) and the [Llama 2 paper](https://arxiv.org/abs/2307.09288)) show it performs comparably to standard MHA in terms of LLM modeling performance.
-
-Now, Multi-Head Latent Attention (MLA), which is used in [DeepSeek V2, V3, and R1](https://arxiv.org/abs/2412.19437), offers a different memory-saving strategy that also pairs particularly well with KV caching. Instead of sharing key and value heads like GQA, MLA compresses the key and value tensors into a lower-dimensional space before storing them in the KV cache. 
-
-At inference time, these compressed tensors are projected back to their original size before being used, as shown in the figure below. This adds an extra matrix multiplication but reduces memory usage.
+本扩展材料展示了使用多头潜在注意力（MLA）相较于常规多头注意力（MHA）能够节省多少内存。
 
 &nbsp;
+## 简介
 
-![MLA](https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/1.webp)
+在 [../04_gqa](../04_gqa) 中，我们讨论了分组查询注意力（GQA），它是提高 MHA 计算效率的一种方法。消融研究（例如[原始 GQA 论文](https://arxiv.org/abs/2305.13245)和 [Llama 2 论文](https://arxiv.org/abs/2307.09288)中的研究）表明，在 LLM 建模性能方面，GQA 与标准 MHA 的表现相当。
+
+现在来看看多头潜在注意力（MLA）。DeepSeek V2、V3 和 R1 使用了 MLA（[论文](https://arxiv.org/abs/2412.19437)）。它采用了另一种节省内存的策略，而且特别适合与 KV 缓存搭配使用。与 GQA 共享键头和值头不同，MLA 会先将键张量和值张量压缩到低维空间，再存入 KV 缓存。
+
+如下图所示，推理时会先将这些压缩张量投影回原来的大小，再使用它们。这会增加一次矩阵乘法，但能减少内存用量。
 
 &nbsp;
 
-(As a side note, the queries are also compressed, but only during training, not inference.)
-
-By the way, as mentioned earlier, MLA is not new in DeepSeek V3, as its [DeepSeek V2 predecessor](https://arxiv.org/abs/2405.04434) also used (and even introduced) it. Also, the V2 paper contains a few interesting ablation studies that may explain why the DeepSeek team chose MLA over GQA (see the figure below).
+![多头潜在注意力（MLA）](https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/1.webp)
 
 &nbsp;
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/2.webp" alt="GQA" width="500px" />
+（顺带一提，查询也会被压缩，但只在训练期间压缩，推理时不会。）
+
+另外，如前所述，MLA 并非 DeepSeek V3 首创；它的前代模型 [DeepSeek V2](https://arxiv.org/abs/2405.04434) 也使用了 MLA，并且是首次引入它的模型。V2 论文还包含一些有意思的消融研究，或许可以解释 DeepSeek 团队为何选择 MLA 而非 GQA（见下图）。
 
 &nbsp;
 
-As shown in the figure above, GQA appears to perform worse than MHA, whereas MLA offers better modeling performance than MHA, which is likely why the DeepSeek team chose MLA over GQA. (It would have been interesting to see the "KV Cache per Token" savings comparison between MLA and GQA as well!)
-
-To summarize this section, before we move on to the next architecture component, MLA is a clever trick to reduce KV cache memory use while even slightly outperforming MHA in terms of modeling performance.
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/2.webp" alt="分组查询注意力（GQA）" width="500px" />
 
 &nbsp;
-## MLA Memory Savings
 
-The memory savings are mostly reflected in the KV storage. We can compute the KV storage size with the following formula:
+如上图所示，GQA 的表现似乎不如 MHA，而 MLA 的建模性能优于 MHA，这可能就是 DeepSeek 团队选择 MLA 而非 GQA 的原因。（如果能看到 MLA 和 GQA 在“每个 Token 的 KV 缓存”方面的节省对比，也会很有意思！）
+
+在继续介绍下一个架构组件之前，简单总结一下：MLA 是一种巧妙的方法，既能减少 KV 缓存的内存用量，在建模性能方面甚至还略胜 MHA 一筹。
+
+&nbsp;
+## MLA 的内存节省
+
+节省的内存主要体现在 KV 存储上。我们可以使用以下公式计算 KV 存储大小：
 
 bytes ≈ batch_size × seqlen × n_layers × latent_dim × bytes_per_elem
 
-In contrast, MHA KV cache memory is computed as follows:
+相比之下，MHA 的 KV 缓存内存用量按以下公式计算：
 
 bytes ≈ batch_size × seqlen × n_layers × embed_dim × 2 (K,V) × bytes_per_elem
 
-This means, in MLA, we reduce "embed_dim × 2 (K,V)" to "latent_dim", since we only stored the compressed latent representation instead of the full key and value vectors as shown in the earlier figure above.
+这意味着在 MLA 中，我们将 "embed_dim × 2 (K,V)" 减小为 "latent_dim"，因为如前图所示，我们只存储压缩后的潜在表示，而不存储完整的键向量和值向量。
 
 
 
-You can use the [memory_estimator_mla.py](memory_estimator_mla.py) script in this folder to apply this for different model configs to see how much memory you can save by using MLA over MHA:
+你可以使用此文件夹中的 [memory_estimator_mla.py](memory_estimator_mla.py) 脚本，为不同的模型配置应用该公式，查看使用 MLA 相较于 MHA 能节省多少内存：
 
 ```bash
 ➜ uv run memory_estimator_mla.py \
@@ -80,32 +80,32 @@ Ratio (MHA / MLA)   : 4.03x
 Savings (MLA vs MHA): 75.19%
 ```
 
-Note that the compression above (`--emb_dim 2048 -> latent_dim 1024`) to achieve a similar saving as for GQA. In practice, the compression is a hyperparameter that needs to be carefully investigated, as choosing `latent_dim` to be too small can have negative impact on the modeling performance (similar to choosing too many `n_kv_groups` in GQA).
+请注意，上面的压缩配置（`--emb_dim 2048 -> latent_dim 1024`）是为了达到与 GQA 类似的节省效果。实际使用时，压缩程度是一个需要仔细研究的超参数，因为 `latent_dim` 过小可能会损害建模性能（这与 GQA 中 `n_kv_groups` 取值过大的情况类似）。
 
-The savings when using MLA over MHA are further shown in the plot below for different `latent_dim` values as a function of the context length:
-
-&nbsp;
-
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/3.webp?2" alt="GQA" width="500px" />
+下图进一步展示了在不同 `latent_dim` 值下，使用 MLA 相较于 MHA 节省的内存随上下文长度的变化：
 
 &nbsp;
 
-You can reproduce the plot via `uv run plot_memory_estimates_mla.py`.
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/mla-memory/3.webp?2" alt="分组查询注意力（GQA）" width="500px" />
+
+&nbsp;
+
+你可以通过 `uv run plot_memory_estimates_mla.py` 复现该图。
 
 
 
 &nbsp;
-## MLA Code Examples
+## MLA 代码示例
 
-The [gpt_with_kv_mha.py](gpt_with_kv_mha.py) and [gpt_with_kv_mla.py](gpt_with_kv_mla.py) scripts in this folder provide hands-on examples for comparing the MHA and MLA memory usage in the context of a GPT model implementation. 
+此文件夹中的 [gpt_with_kv_mha.py](gpt_with_kv_mha.py) 和 [gpt_with_kv_mla.py](gpt_with_kv_mla.py) 脚本提供了实践示例，用于在 GPT 模型实现中比较 MHA 和 MLA 的内存用量。
 
-Here, the MLA code is inspired by the [https://huggingface.co/bird-of-paradise/deepseek-mla](https://huggingface.co/bird-of-paradise/deepseek-mla) implementation.
+这里的 MLA 代码参考了 [https://huggingface.co/bird-of-paradise/deepseek-mla](https://huggingface.co/bird-of-paradise/deepseek-mla) 实现。
 
-Note that MLA can also be used in combination with [GQA](../04_gqa), but for simplicity, I this is not done here. (Currently, I am also not aware of a prominent LLM doing this.)
+请注意，MLA 也可以与 [GQA](../04_gqa) 结合使用，但为简化起见，这里没有这样做。（目前我也不知道有哪些知名 LLM 采用了这种组合。）
 
-Also note that the model is not trained and thus generates nonsensical text. However, you can use it as a drop-in replacement for the standard GPT model in chapters 5-7 and train it.
+还要注意，这个模型尚未训练，因此会生成无意义的文本。不过，你可以将它直接替换第 5 至第 7 章中的标准 GPT 模型，然后对其进行训练。
 
-Lastly, this implementation uses the KV cache explained in [another bonus section](../03_kv-cache) so the memory savings are more pronounced.
+最后，这一实现使用了[另一个扩展章节](../03_kv-cache)中介绍的 KV 缓存，因此内存节省效果更加明显。
 
 ```bash
 uv run gpt_with_kv_mha.py \
@@ -136,7 +136,7 @@ Time: 487.21 sec
 Max memory allocated: 0.68 GB
 ```
 
-The reason why we are not seeing such a big saving as in the plots above is 2-fold:
+我们没有看到像上图中那么大的节省，原因有两点：
 
-1. I use a smaller configuration to have the model finish the generation in a reasonable time.
-2. More importantly, we are looking at the whole model here, not just the attention mechanism; the fully-connected layers in the model take up most of the memory (but this is a topic for a separate analysis).
+1. 我使用了较小的配置，以便模型能在合理的时间内完成生成。
+2. 更重要的是，这里观察的是整个模型，而不只是注意力机制；模型中的全连接层占用了大部分内存（不过，这属于另一个分析主题）。

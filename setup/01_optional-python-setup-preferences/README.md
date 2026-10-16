@@ -1,65 +1,65 @@
-# Python Setup Tips
+# Python 环境配置建议
 
 
 
-There are several ways to install Python and set up your computing environment. Here, I share my personal preferences.
+安装 Python 和配置计算环境有多种方法。这里分享我个人偏好的做法。
 
 <br>
 
-> **Note:**
-> If you are running any of the notebooks on Google Colab and want to install the dependencies, simply run the following code in a new cell at the top of the notebook and skip the rest of this tutorial:
+> **注意：**
+> 如果你在 Google Colab 上运行 Notebook，并希望安装依赖，只需在 Notebook 顶部新建单元格，运行以下代码，然后跳过本教程的其余内容：
 > `pip install uv && uv pip install --system -r https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/refs/heads/main/requirements.txt`
 
-The remaining sections below describe how you can manage your Python environment and packages on your local machine.
+下面各节介绍如何在本地计算机上管理 Python 环境和包。
 
-I have been a long-time user of [Conda](https://anaconda.org/anaconda/conda) and [pip](https://pypi.org/project/pip/), but recently, the [uv](https://github.com/astral-sh/uv) package has gained significant traction as it provides a faster and more efficient way to install packages and resolve dependencies.
+我长期使用 [Conda](https://anaconda.org/anaconda/conda) 和 [pip](https://pypi.org/project/pip/)。不过，近来 [uv](https://github.com/astral-sh/uv) 越来越受欢迎，因为它能更快速、高效地安装包并解析依赖。
 
-I recommend starting with *Option 1: Using uv* as it is the more modern approach in 2025. If you encounter problems with *Option 1*, consider *Option 2: Using Conda*.
+建议从“方案 1：使用 uv”开始，这是在 2025 年更现代的做法。如果“方案 1”遇到问题，可以考虑“方案 2：使用 Conda”。
 
-In this tutorial, I am using a computer running macOS, but this workflow is similar for Linux machines and may work for other operating systems as well.
-
-
-&nbsp;
-# Option 1: Using uv
-
-This section guides you through the Python setup and package installation procedure using `uv` via its `uv pip` interface. The `uv pip` interface may feel more familiar to most Python users who have used pip before than the native `uv` commands.
-
-&nbsp;
-> **Note:**
-> There are alternative ways to install Python and use `uv`. For example, you can install Python directly via `uv` and use `uv add` instead of `uv pip install` for even faster package management.
->
-> If you are a macOS or Linux user and prefer the native `uv` commands, refer to the [./native-uv.md tutorial](./native-uv.md). I also recommend checking the official [`uv` documentation](https://docs.astral.sh/uv/).
->
-> The `uv add` syntax also applies to Windows users. However, I found that some dependencies in the `pyproject.toml` cause problems on Windows. So, for Windows users, I recommend `pixi` instead, which has a similar `pixi add` workflow like `uv add`. For more information, see the [./native-pixi.md tutorial](./native-pixi.md).
->
-> While `uv add` and `pixi add` offer additional speed advantages, I think that `uv pip` is slightly more user-friendly, making it a good starting point for beginners. However, if you're new to Python package management, the native `uv` interface is also a great opportunity to learn it from the start. It's also how I use `uv` now, but I realize the barrier to entry is a bit higher if you are coming from `pip` and `conda`.
-
-
+本教程使用运行 macOS 的计算机演示；Linux 上的流程类似，也可能适用于其他操作系统。
 
 
 &nbsp;
-## 1. Install Python (if not installed)
+# 方案 1：使用 uv
 
-If you haven't manually installed Python on your system before, I highly recommend doing so. This helps prevent potential conflicts with your operating system's built-in Python installation, which could lead to issues.
+本节介绍通过 `uv` 的 `uv pip` 接口配置 Python 和安装包的流程。对于用过 pip 的 Python 用户，`uv pip` 接口可能比原生 `uv` 命令更熟悉。
 
-However, even if you have installed Python on your system before, check if you have a modern version of Python installed (I recommend 3.10 or newer) by executing the following code in the terminal:
+&nbsp;
+> **注意：**
+> 安装 Python 和使用 `uv` 还有其他方式。例如，可以直接通过 `uv` 安装 Python，再使用 `uv add` 代替 `uv pip install`，进一步加快包管理。
+>
+> 如果你使用 macOS 或 Linux，并偏好原生 `uv` 命令，请参阅 [./native-uv.md 教程](./native-uv.md)。同时也建议阅读 [`uv` 官方文档](https://docs.astral.sh/uv/)。
+>
+> `uv add` 语法同样适用于 Windows。不过，我发现 `pyproject.toml` 中的部分依赖会在 Windows 上引发问题。因此，对于 Windows 用户，我推荐改用 `pixi`，其 `pixi add` 工作流程与 `uv add` 类似。更多说明见 [./native-pixi.md 教程](./native-pixi.md)。
+>
+> 虽然 `uv add` 和 `pixi add` 在速度上更有优势，但我认为 `uv pip` 稍易上手，适合初学者。不过，如果你刚开始接触 Python 包管理，原生 `uv` 接口也是从头学习的好机会。这也是我目前使用 `uv` 的方式，但对于习惯 `pip` 和 `conda` 的用户，入门门槛可能略高。
+
+
+
+
+&nbsp;
+## 1. 安装 Python（如尚未安装）
+
+如果之前没有手动在系统上安装过 Python，我强烈建议先安装。这有助于避免与操作系统内置 Python 发生潜在冲突，从而引发问题。
+
+即使之前安装过 Python，也请在终端执行以下代码，确认版本是否较新（建议 3.10 或更新版本）：
 
 ```bash
 python --version
 ```
-If it returns 3.10 or newer, no further action is required.
+如果返回 3.10 或更新版本，则无需进一步操作。
 
 &nbsp;
-> **Note:**
-> If `python --version` indicates that no Python version is installed, you may also want to check `python3 --version` since your system might be configured to use the `python3` command instead.
+> **注意：**
+> 如果 `python --version` 提示没有安装 Python，也请检查 `python3 --version`，因为系统可能配置为使用 `python3` 命令。
 
 &nbsp;
-> **Note:**
-> I recommend installing a Python version that is at least 2 versions older than the most recent release to ensure PyTorch compatibility. For example, if the most recent version is Python 3.13, I recommend installing version 3.10 or 3.11.
+> **注意：**
+> 为确保与 PyTorch 兼容，建议安装比最新发布版本至少早两个版本的 Python。例如，如果最新版为 Python 3.13，建议安装 3.10 或 3.11。
 
-Otherwise, if Python is not installed or is an older version, you can install it for your operating system as described below.
+如果尚未安装 Python，或版本较旧，可以根据操作系统按以下方法安装。
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/python-not-found.png" width="500" height="auto" alt="No Python Found">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/python-not-found.png" width="500" height="auto" alt="未找到 Python">
 
 <br>
 
@@ -74,33 +74,33 @@ sudo apt install python3.10 python3.10-venv python3.10-dev
 
 **macOS**
 
-If you use Homebrew, install Python with:
+如果使用 Homebrew，可以通过以下命令安装 Python：
 
 ```bash
 brew install python@3.10
 ```
 
-Alternatively, download and run the installer from the official website: [https://www.python.org/downloads/](https://www.python.org/downloads/).
+也可以从官网下载并运行安装程序：[https://www.python.org/downloads/](https://www.python.org/downloads/)。
 
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/python-version.png" width="700" height="auto" alt="Python version">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/python-version.png" width="700" height="auto" alt="Python 版本">
 
 <br>
 
 **Windows**
 
-Download and run the installer from the official website: [https://www.python.org/downloads/](https://www.python.org/downloads/).
+从官网下载并运行安装程序：[https://www.python.org/downloads/](https://www.python.org/downloads/)。
 
 
 &nbsp;
 
-## 2. Create a virtual environment
+## 2. 创建虚拟环境
 
-I highly recommend installing Python packages in a separate virtual environment to avoid modifying system-wide packages that your OS may depend on. To create a virtual environment in the current folder, follow the three steps below.
+强烈建议在独立的虚拟环境中安装 Python 包，以免修改操作系统可能依赖的系统级包。要在当前目录创建虚拟环境，请执行以下三个步骤。
 
 <br>
 
-**1. Install uv**
+**1. 安装 uv**
 
 ```bash
 pip install uv
@@ -108,7 +108,7 @@ pip install uv
 
 <br>
 
-**2. Create the virtual environment**
+**2. 创建虚拟环境**
 
 ```bash
 uv venv --python=python3.10
@@ -116,209 +116,209 @@ uv venv --python=python3.10
 
 <br>
 
-**3. Activate the virtual environment**
+**3. 激活虚拟环境**
 
 ```bash
 source .venv/bin/activate
 ```
 
 &nbsp;
-> **Note:**
-> If you are using Windows, you may have to replace the command above by `source .venv/Scripts/activate` or `.venv/Scripts/activate`.
+> **注意：**
+> 如果使用 Windows，可能需要将上面的命令替换为 `source .venv/Scripts/activate` 或 `.venv/Scripts/activate`。
 
 
 
-Note that you need to activate the virtual environment each time you start a new terminal session. For example, if you restart your terminal or computer and want to continue working on the project the next day, simply run `source .venv/bin/activate` in the project folder to reactivate your virtual environment.
+每次启动新的终端会话，都需要激活虚拟环境。例如，重启终端或计算机后，第二天要继续处理项目时，只需在项目目录运行 `source .venv/bin/activate`，即可重新激活虚拟环境。
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/venv-activate-1.png" width="600" height="auto" alt="Venv activated">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/venv-activate-1.png" width="600" height="auto" alt="虚拟环境已激活">
 
-Optionally, you can deactivate the environment by executing the command `deactivate`.
+需要时，可以执行 `deactivate` 命令停用环境。
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/venv-activate-2.png" width="800" height="auto" alt="Venv deactivated">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/venv-activate-2.png" width="800" height="auto" alt="虚拟环境已停用">
 
 &nbsp;
-## 3. Install packages
+## 3. 安装包
 
-After activating your virtual environment, you can install Python packages using `uv`. For example:
+激活虚拟环境后，可以使用 `uv` 安装 Python 包。例如：
 
 ```bash
 uv pip install packaging
 ```
 
-To install all required packages from a `requirements.txt` file (such as the one located at the top level of this GitHub repository) run the following command, assuming the file is in the same directory as your terminal session:
+要安装 `requirements.txt` 文件（例如本 GitHub 仓库根目录中的文件）列出的全部必需包，请运行以下命令，假设该文件位于当前终端目录：
 
 ```bash
 uv pip install -r requirements.txt
 ```
 
 
-Alternatively, install the latest dependencies directly from the repository:
+也可以直接从仓库安装最新依赖：
 
 ```bash
 uv pip install -r https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/refs/heads/main/requirements.txt
 ```
 
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/uv-install.png" width="700" height="auto" alt="Uv install">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/uv-install.png" width="700" height="auto" alt="uv 安装">
 
 &nbsp;
 
-> **Note:**
-> If you have problems with the following commands above due to certain dependencies (for example, if you are using Windows), you can always fall back to using regular pip:
+> **注意：**
+> 如果上述命令因某些依赖而出现问题（例如在 Windows 上），可以随时退回使用普通 pip：
 > `pip install -r requirements.txt`
-> or
+> 或者
 > `pip install -U -r https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/refs/heads/main/requirements.txt`
 
 &nbsp;
 
-> **Optional dependencies for bonus materials:**
-> To include the optional dependencies used throughout the bonus materials, install the `bonus` dependency group from the project root:
+> **补充资料的可选依赖：**
+> 要安装各项补充资料使用的可选依赖，请在项目根目录安装 `bonus` 依赖组：
 >  `uv pip install --group bonus`
-> This is useful if you don't want to install them separately as you check out the optional bonus materials later on.
+> 如果你不想在之后学习可选补充资料时分别安装依赖，这种方式会更方便。
 
 <br>
 
-**Finalizing the setup**
+**完成配置**
 
-That’s it! Your environment should now be ready for running the code in the repository.
+配置完成！现在你的环境应该已经可以运行本仓库的代码。
 
-Optionally, you can run an environment check by executing the `python_environment_check.py` script in this repository:
+你还可以运行本仓库的 `python_environment_check.py` 脚本，检查环境：
 
 ```bash
 python setup/02_installing-python-libraries/python_environment_check.py
 ```
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/env-check.png" width="700" height="auto" alt="Environment check">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/env-check.png" width="700" height="auto" alt="环境检查">
 
-If you encounter any issues with specific packages, try reinstalling them using:
+如果某个包出现问题，可以尝试用以下命令重新安装：
 
 ```bash
 uv pip install packagename
 ```
 
-(Here, `packagename` is a placeholder name that needs to be replaced with the package name you are having problems with.)
+（这里的 `packagename` 是占位名称，需要替换为出问题的包名。）
 
-If problems persist, consider [opening a discussion](https://github.com/rasbt/LLMs-from-scratch/discussions) on GitHub or working through the *Option 2: Using Conda* section below.
+如果问题仍然存在，可以在 GitHub 上[发起讨论](https://github.com/rasbt/LLMs-from-scratch/discussions)，或尝试下方“方案 2：使用 Conda”中的步骤。
 
 <br>
 
-**Start working with the code**
+**开始使用代码**
 
-Once everything is set up, you can start working with the code files. For instance, launch [JupyterLab](https://jupyterlab.readthedocs.io/en/latest/) by running:
+完成全部配置后，就可以使用代码文件了。例如，运行以下命令启动 [JupyterLab](https://jupyterlab.readthedocs.io/en/latest/)：
 
 ```bash
 jupyter lab
 ```
 
 &nbsp;
-> **Note:**
-> If you encounter problems with the jupyter lab command, you can also start it using the full path inside your virtual environment. For example, use `.venv/bin/jupyter lab` on Linux/macOS or `.venv\Scripts\jupyter-lab` on Windows.
+> **注意：**
+> 如果 jupyter lab 命令遇到问题，也可以通过虚拟环境内的完整路径启动。例如，Linux/macOS 上使用 `.venv/bin/jupyter lab`，Windows 上使用 `.venv\Scripts\jupyter-lab`。
 
 &nbsp;
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/jupyter.png" width="900" height="auto" alt="Uv install">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/uv-setup/jupyter.png" width="900" height="auto" alt="uv 安装">
 
 &nbsp;
 <br>
 <br>
 &nbsp;
 
-# Option 2: Using Conda
+# 方案 2：使用 Conda
 
 
 
-This section guides you through the Python setup and package installation procedure using [`conda`](https://www.google.com/search?client=safari&rls=en&q=conda&ie=UTF-8&oe=UTF-8) via [miniforge](https://github.com/conda-forge/miniforge).
+本节介绍通过 [miniforge](https://github.com/conda-forge/miniforge) 使用 [`conda`](https://www.google.com/search?client=safari&rls=en&q=conda&ie=UTF-8&oe=UTF-8) 配置 Python 和安装包的流程。
 
-In this tutorial, I am using a computer running macOS, but this workflow is similar for Linux machines and may work for other operating systems as well.
+本教程使用运行 macOS 的计算机演示；Linux 上的流程类似，也可能适用于其他操作系统。
 
 
 &nbsp;
-## 1. Download and install Miniforge
+## 1. 下载并安装 Miniforge
 
-Download miniforge from the GitHub repository [here](https://github.com/conda-forge/miniforge).
+从 GitHub 仓库[下载 miniforge](https://github.com/conda-forge/miniforge)。
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/download.png" alt="download" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/download.png" alt="下载" width="600px">
 
-Depending on your operating system, this should download either an `.sh` (macOS, Linux) or `.exe` file (Windows).
+根据操作系统，下载的文件应为 `.sh`（macOS、Linux）或 `.exe`（Windows）。
 
-For the `.sh` file, open your command line terminal and execute the following command
+对于 `.sh` 文件，请打开命令行终端，执行以下命令：
 
 ```bash
 sh ~/Desktop/Miniforge3-MacOSX-arm64.sh
 ```
 
-where `Desktop/` is the folder where the Miniforge installer was downloaded to. On your computer, you may have to replace it with `Downloads/`.
+其中，`Desktop/` 是下载 Miniforge 安装程序的目录。在你的计算机上，可能需要改成 `Downloads/`。
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/miniforge-install.png" alt="miniforge-install" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/miniforge-install.png" alt="安装 Miniforge" width="600px">
 
-Next, step through the download instructions, confirming with "Enter".
+接下来按提示逐步操作，使用 Enter 键确认。
 
 
 &nbsp;
-## 2. Create a new virtual environment
+## 2. 创建新的虚拟环境
 
-After the installation was successfully completed, I recommend creating a new virtual environment called `LLMs`, which you can do by executing
+安装成功后，建议创建一个名为 `LLMs` 的新虚拟环境，执行：
 
 ```bash
 conda create -n LLMs python=3.10
 ```
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/new-env.png" alt="new-env" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/new-env.png" alt="新建环境" width="600px">
 
-> Many scientific computing libraries do not immediately support the newest version of Python. Therefore, when installing PyTorch, it's advisable to use a version of Python that is one or two releases older. For instance, if the latest version of Python is 3.13, using Python 3.10 or 3.11 is recommended.
+> 很多科学计算库不会立即支持最新版本的 Python。因此，安装 PyTorch 时，建议使用比最新版早一到两个版本的 Python。例如，如果最新版本为 Python 3.13，建议使用 Python 3.10 或 3.11。
 
-Next, activate your new virtual environment (you have to do it every time you open a new terminal window or tab):
+接下来激活新建的虚拟环境（每次打开新的终端窗口或标签页时，都需要执行此步骤）：
 
 ```bash
 conda activate LLMs
 ```
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/activate-env.png" alt="activate-env" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/activate-env.png" alt="激活环境" width="600px">
 
 
 &nbsp;
-## Optional: styling your terminal
+## 可选：美化终端
 
-If you want to style your terminal similar to mine so that you can see which virtual environment is active,  check out the [Oh My Zsh](https://github.com/ohmyzsh/ohmyzsh) project.
+如果你想让终端像我的一样显示当前激活的虚拟环境，可以了解 [Oh My Zsh](https://github.com/ohmyzsh/ohmyzsh) 项目。
 
 &nbsp;
-## 3. Install new Python libraries
+## 3. 安装新的 Python 库
 
 
 
-To install new Python libraries, you can now use the `conda` package installer. For example, you can install [JupyterLab](https://jupyter.org/install) and [watermark](https://github.com/rasbt/watermark) as follows:
+现在可以使用 `conda` 包安装工具安装新的 Python 库。例如，可以按以下方式安装 [JupyterLab](https://jupyter.org/install) 和 [watermark](https://github.com/rasbt/watermark)：
 
 ```bash
 conda install jupyterlab watermark
 ```
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/conda-install.png" alt="conda-install" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/conda-install.png" alt="使用 conda 安装" width="600px">
 
 
 
-You can also still use `pip` to install libraries. By default, `pip` should be linked to your new `LLMs` conda environment:
+你也仍然可以用 `pip` 安装库。默认情况下，`pip` 应当关联到新建的 `LLMs` conda 环境：
 
-<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/check-pip.png" alt="check-pip" width="600px">
+<img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/check-pip.png" alt="检查 pip" width="600px">
 
 &nbsp;
-## 4. Install PyTorch
+## 4. 安装 PyTorch
 
-PyTorch can be installed just like any other Python library or package using pip. For example:
+与其他 Python 库或包一样，PyTorch 可以通过 pip 安装。例如：
 
 ```bash
 pip install torch
 ```
 
-However, since PyTorch is a comprehensive library featuring CPU- and GPU-compatible codes, the installation may require additional settings and explanation (see the *A.1.3 Installing PyTorch in the book for more information*).
+不过，PyTorch 是一个同时提供 CPU 和 GPU 兼容代码的综合性库，安装时可能需要额外配置和说明，详见本书 *A.1.3 安装 PyTorch*。
 
-It's also highly recommended to consult the installation guide menu on the official PyTorch website at [https://pytorch.org](https://pytorch.org).
+同时强烈建议参考 PyTorch 官网 [https://pytorch.org](https://pytorch.org) 上的安装指南菜单。
 
 <img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/setup/01_optional-python-setup-preferences/pytorch-installer.jpg" width="600px">
 
 &nbsp;
-## 5. Installing Python packages and libraries used in this book
+## 5. 安装本书使用的 Python 包与库
 
-Please refer to the [Installing Python packages and libraries used in this book](../02_installing-python-libraries/README.md) document for instructions on how to install the required libraries.
+有关安装所需库的说明，请参阅[安装本书使用的 Python 包与库](../02_installing-python-libraries/README.md)。
 
 <br>
 
@@ -327,4 +327,4 @@ Please refer to the [Installing Python packages and libraries used in this book]
 
 
 
-Any questions? Please feel free to reach out in the [Discussion Forum](https://github.com/rasbt/LLMs-from-scratch/discussions).
+如有问题，欢迎在[讨论区](https://github.com/rasbt/LLMs-from-scratch/discussions)交流。

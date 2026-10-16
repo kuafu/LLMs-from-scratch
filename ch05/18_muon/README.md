@@ -1,22 +1,22 @@
-# Muon Optimizer
+# Muon 优化器
 
-This bonus material illustrates how to use PyTorch's Muon optimizer with the GPT model training setup.
-
-&nbsp;
-## Introduction
-
-Muon (["Muon is Scalable for LLM Training"](https://arxiv.org/abs/2502.16982)) is a relatively new optimizer for training LLMs' large 2D weight matrices that dominate transformer blocks, such as attention projections, feed-forward projections, and the output head. Parameters that are not good Muon targets, such as embeddings, biases, and normalization parameters, are typically kept on AdamW, though.
-
-Concretely, that means:
-
-1. Use Muon for trainable 2D parameters that do not belong to embedding layers.
-2. Use AdamW for embeddings, biases, normalization parameters, and other non-2D parameters.
-3. Learning rate-wise, e.g., try starting with `lr=1e-4` for Muon, `lr=5e-5` for AdamW, `weight_decay=0.1`, and `adjust_lr_fn="match_rms_adamw"` for Muon.
+这份附加材料演示如何在 GPT 模型训练设置中使用 PyTorch 的 Muon 优化器。
 
 &nbsp;
-## Code Examples
+## 简介
 
-The [gpt_train.py](gpt_train.py) script is the baseline script from chapter 5:
+Muon（[《Muon 可扩展地用于 LLM 训练》](https://arxiv.org/abs/2502.16982)）是一种相对较新的优化器，用于训练 LLM 中的大型二维权重矩阵。这些矩阵主要存在于 Transformer 块中，例如注意力投影、前馈投影和输出头。不过，嵌入、偏置和归一化参数等不适合由 Muon 优化的参数，通常仍交给 AdamW 处理。
+
+具体来说，这意味着：
+
+1. 对于不属于嵌入层的可训练二维参数，使用 Muon。
+2. 对于嵌入、偏置、归一化参数和其他非二维参数，使用 AdamW。
+3. 例如，可以从以下学习率设置开始：Muon 使用 `lr=1e-4`，AdamW 使用 `lr=5e-5`，`weight_decay=0.1`，并为 Muon 设置 `adjust_lr_fn="match_rms_adamw"`。
+
+&nbsp;
+## 代码示例
+
+[gpt_train.py](gpt_train.py) 脚本是第 5 章的基线脚本：
 
 ```bash
 uv run gpt_train.py
@@ -55,9 +55,9 @@ Every effort moves you?"  "Yes--quite insensible to the irony. She wanted him vi
 
 <br>
 
-The alternative [gpt_train_muon.py](gpt_train_muon.py) script starts from the same model implementation but uses Muon (in addition to AdamW).
+另一个脚本 [gpt_train_muon.py](gpt_train_muon.py) 从相同的模型实现出发，但除 AdamW 外还使用了 Muon。
 
-I recommend looking at a file diff between [gpt_train.py](gpt_train.py) and [gpt_train_muon.py](gpt_train_muon.py) to quickly see how Muon is implemented here.
+我建议查看 [gpt_train.py](gpt_train.py) 和 [gpt_train_muon.py](gpt_train_muon.py) 之间的文件差异，以便快速了解这里如何实现 Muon。
 
 ```bash
 uv run gpt_train_muon.py
@@ -171,4 +171,4 @@ Ep 10 (Step 000085): Train loss 0.103, Val loss 11.816
 Every effort moves you?"  "Yes--quite insensible to the irony. She wanted him vindicated--and by me!"  He laughed again, and threw back his glory, and my elbow and continued to wander up and down the room, stopping now
 ```
 
-By the way, this is not meant to be a meaningful language-modeling benchmark. The model is randomly initialized and trained for one epoch on a tiny repeated text snippet only so the optimizer path is easy to inspect and quick to run.
+顺便说明，这并不是一个有实际意义的语言建模基准。模型是随机初始化的，并且只在一小段重复文本上训练一个轮次，这样优化器的运行过程便于检查，运行速度也更快。

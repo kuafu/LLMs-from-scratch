@@ -1,29 +1,29 @@
-# Native pixi Python and package management
+# 使用原生 pixi 命令管理 Python 和包
 
-This tutorial is an alternative to the [`./native-uv.md`](native-uv.md) document for those who prefer `pixi`'s native commands over traditional environment and package managers like `conda` and `pip`.
+本教程面向偏好原生 `pixi` 命令而非 `conda`、`pip` 等传统环境和包管理工具的读者，是 [`./native-uv.md`](native-uv.md) 的替代方案。
 
-Note that pixi uses `uv add` under the hood, as described in [`./native-uv.md`](native-uv.md).
+如 [`./native-uv.md`](native-uv.md) 所述，pixi 在底层使用 `uv add`。
 
-Pixi and uv are both modern package and environment management tools for Python, but pixi is a polyglot package manager designed for managing not just Python but also other languages (similar to conda), while uv is a Python-specific tool optimized for ultra-fast dependency resolution and package installation.
+Pixi 和 uv 都是现代 Python 包与环境管理工具，但 pixi 与 conda 类似，是面向多种语言的包管理工具，除了 Python，还能管理其他语言；uv 则专注于 Python，针对极快的依赖解析和包安装进行了优化。
 
-Someone might choose pixi over uv if they need a polyglot package manager that supports multiple languages (not just Python) or prefer a declarative environment management approach similar to conda. For more information, please visit the official [pixi documentation](https://pixi.sh/latest/).
+如果需要支持多种语言的包管理工具，或偏好类似 conda 的声明式环境管理方式，可以选择 pixi 而非 uv。更多说明请参阅 [pixi 官方文档](https://pixi.sh/latest/)。
 
-In this tutorial, I am using a computer running macOS, but this workflow is similar for Linux machines and may work for other operating systems as well.
+本教程使用运行 macOS 的计算机演示；Linux 上的流程类似，也可能适用于其他操作系统。
 
 &nbsp;
-## 1. Install pixi
+## 1. 安装 pixi
 
-Pixi can be installed as follows, depending on your operating system.
+可以根据操作系统按以下方式安装 pixi。
 
 <br>
 
-**macOS and Linux**
+**macOS 与 Linux**
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | sh
 ```
 
-or
+或者
 
 ```bash
 wget -qO- https://pixi.sh/install.sh | sh
@@ -33,58 +33,58 @@ wget -qO- https://pixi.sh/install.sh | sh
 
 **Windows**
 
-Download the installer from the official [documentation](https://pixi.sh/latest/installation/#__tabbed_1_2) or run the listed PowerShell command.
+从[官方文档](https://pixi.sh/latest/installation/#__tabbed_1_2)下载安装程序，或运行其中列出的 PowerShell 命令。
 
 
 
-> **Note:**
-> For more installation options, please refer to the official [pixi documentation](https://pixi.sh/latest/).
+> **注意：**
+> 更多安装方式请参阅 [pixi 官方文档](https://pixi.sh/latest/)。
 
 
 &nbsp;
-## 2. Install Python
+## 2. 安装 Python
 
-You can install Python using pixi:
+可以使用 pixi 安装 Python：
 
 ```bash
 pixi add python=3.10
 ```
 
-> **Note:**
-> I recommend installing a Python version that is at least 2 versions older than the most recent release to ensure PyTorch compatibility. For example, if the most recent version is Python 3.13, I recommend installing version 3.10 or 3.11. You can find out the most recent Python version by visiting [python.org](https://www.python.org).
+> **注意：**
+> 为确保与 PyTorch 兼容，建议安装比最新发布版本至少早两个版本的 Python。例如，如果最新版为 Python 3.13，建议安装 3.10 或 3.11。可以访问 [python.org](https://www.python.org) 了解最新 Python 版本。
 
 &nbsp;
-## 3. Install Python packages and dependencies
+## 3. 安装 Python 包与依赖
 
-To install all required packages from a `pixi.toml` file (such as the one located at the top level of this GitHub repository), run the following command, assuming the file is in the same directory as your terminal session:
+要安装 `pixi.toml` 文件（例如本 GitHub 仓库根目录中的文件）列出的全部必需包，请运行以下命令，假设该文件位于当前终端目录：
 
 ```bash
 pixi install
 ```
 
-> **Note:**
-> If you encounter issues with dependencies (for example, if you are using Windows), you can always fall back to pip: `pixi run pip install -U -r requirements.txt`
+> **注意：**
+> 如果遇到依赖问题（例如在 Windows 上），可以随时退回使用 pip：`pixi run pip install -U -r requirements.txt`
 
-By default, `pixi install` will create a separate virtual environment specific to the project.
+默认情况下，`pixi install` 会创建一个专属于本项目的独立虚拟环境。
 
-You can install new packages that are not specified in `pixi.toml` via `pixi add`, for example:
+可以通过 `pixi add` 安装 `pixi.toml` 中没有列出的新包，例如：
 
 ```bash
 pixi add packaging
 ```
 
-And you can remove packages via `pixi remove`, for example,
+也可以通过 `pixi remove` 移除包，例如：
 
 ```bash
 pixi remove packaging
 ```
 
 &nbsp;
-## 4. Run Python code
+## 4. 运行 Python 代码
 
-Your environment should now be ready to run the code in the repository.
+现在你的环境应该已经可以运行本仓库的代码。
 
-Optionally, you can run an environment check by executing the `python_environment_check.py` script in this repository:
+你还可以运行本仓库的 `python_environment_check.py` 脚本，检查环境：
 
 ```bash
 pixi run python setup/02_installing-python-libraries/python_environment_check.py
@@ -92,9 +92,9 @@ pixi run python setup/02_installing-python-libraries/python_environment_check.py
 
 <br>
 
-**Launching JupyterLab**
+**启动 JupyterLab**
 
-You can launch a JupyterLab instance via:
+可以通过以下命令启动 JupyterLab 实例：
 
 ```bash
 pixi run jupyter lab
@@ -103,4 +103,4 @@ pixi run jupyter lab
 
 ---
 
-Any questions? Please feel free to reach out in the [Discussion Forum](https://github.com/rasbt/LLMs-from-scratch/discussions).
+如有问题，欢迎在[讨论区](https://github.com/rasbt/LLMs-from-scratch/discussions)交流。

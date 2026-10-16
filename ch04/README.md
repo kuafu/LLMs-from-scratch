@@ -1,21 +1,22 @@
-# Chapter 4: Implementing a GPT Model from Scratch to Generate Text
+# 第 4 章：从零开始实现 GPT 模型以生成文本
 
 &nbsp;
-## Main Chapter Code
+## 主要章节代码
 
-- [01_main-chapter-code](01_main-chapter-code) contains the main chapter code.
-
-&nbsp;
-## Bonus Materials
-
-- [02_performance-analysis](02_performance-analysis) contains optional code analyzing the performance of the GPT model(s) implemented in the main chapter
-- [03_kv-cache](03_kv-cache) implements a KV cache to speed up the text generation during inference
-- [07_moe](07_moe) explanation and implementation of Mixture-of-Experts (MoE)
-- [ch05/07_gpt_to_llama](../ch05/07_gpt_to_llama) contains a step-by-step guide for converting a GPT architecture implementation to Llama 3.2 and loads pretrained weights from Meta AI (it might be interesting to look at alternative architectures after completing chapter 4, but you can also save that for after reading chapter 5)
-
+- [01_main-chapter-code](01_main-chapter-code) 包含主要章节代码。
 
 &nbsp;
-## Attention Alternatives
+## 扩展材料
+
+- [02_performance-analysis](02_performance-analysis) 包含可选代码，用于分析本章实现的 GPT 模型的性能
+- [03_kv-cache](03_kv-cache) 实现 KV 缓存，以加快推理期间的文本生成
+- [07_moe](07_moe) 介绍并实现专家混合（MoE）
+- [ch05/07_gpt_to_llama](../ch05/07_gpt_to_llama) 提供分步指南，演示如何将 GPT 架构实现转换为 Llama 3.2，并加载 Meta AI 的预训练权重（完成第 4 章后，可以看看其他架构；也可以等读完第 5 章再看）
+
+
+&nbsp;
+<a id="attention-alternatives"></a>
+## 注意力机制的替代方案
 
 &nbsp;
 
@@ -23,19 +24,19 @@
 
 &nbsp;
 
-- [04_gqa](04_gqa) contains an introduction to Grouped-Query Attention (GQA), which is used by most modern LLMs (Llama 4, gpt-oss, Qwen3, Gemma 3, and many more) as alternative to regular Multi-Head Attention (MHA)
-- [05_mla](05_mla) contains an introduction to Multi-Head Latent Attention (MLA), which is used by DeepSeek V3, as alternative to regular Multi-Head Attention (MHA)
-- [06_swa](06_swa) contains an introduction to Sliding Window Attention (SWA), which is used by Gemma 3 and others
-- [08_deltanet](08_deltanet) explanation of Gated DeltaNet as a popular linear attention variant (used in Qwen3-Next and Kimi Linear)
-- [10_kv-sharing](10_kv-sharing) contains an introduction to cross-layer KV sharing, which is used by Gemma 4 E2B and E4B to reduce KV-cache memory
+- [04_gqa](04_gqa) 介绍分组查询注意力（GQA）。许多现代 LLM（Llama 4、gpt-oss、Qwen3、Gemma 3 等）都使用它作为常规多头注意力（MHA）的替代方案
+- [05_mla](05_mla) 介绍多头潜在注意力（MLA）。DeepSeek V3 使用它作为常规多头注意力（MHA）的替代方案
+- [06_swa](06_swa) 介绍滑动窗口注意力（SWA），Gemma 3 等模型使用了这种方法
+- [08_deltanet](08_deltanet) 介绍门控 DeltaNet，这是一种常见的线性注意力变体（用于 Qwen3-Next 和 Kimi Linear）
+- [10_kv-sharing](10_kv-sharing) 介绍跨层 KV 共享。Gemma 4 E2B 和 E4B 使用它来减少 KV 缓存的内存占用
 
 
 &nbsp;
-## More
+## 更多内容
 
-In the video below, I provide a code-along session that covers some of the chapter contents as supplementary material.
+下面的视频提供了一段跟着编写代码的课程，作为补充材料讲解本章的部分内容。
 
 <br>
 <br>
 
-[![Link to the video](https://img.youtube.com/vi/YSAkgEarBGE/0.jpg)](https://www.youtube.com/watch?v=YSAkgEarBGE)
+[![视频链接](https://img.youtube.com/vi/YSAkgEarBGE/0.jpg)](https://www.youtube.com/watch?v=YSAkgEarBGE)

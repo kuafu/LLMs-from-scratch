@@ -1,6 +1,6 @@
-# Optimizing Hyperparameters for Pretraining
+# 优化预训练超参数
 
-The [hparam_search.py](hparam_search.py) script, based on the extended training function in [Appendix D: Adding Bells and Whistles to the Training Loop](../../appendix-D/01_main-chapter-code/appendix-D.ipynb), is designed to find optimal hyperparameters via grid search.
+基于[附录 D：为训练循环增添实用功能](../../appendix-D/01_main-chapter-code/appendix-D.ipynb)中的扩展训练函数，[hparam_search.py](hparam_search.py) 脚本通过网格搜索来寻找最优超参数。
 
 >[!NOTE]
-This script will take a long time to run. You may want to reduce the number of hyperparameter configurations explored in the `HPARAM_GRID` dictionary at the top.
+此脚本运行时间较长。你可以考虑减少顶部 `HPARAM_GRID` 字典中要探索的超参数配置数量。

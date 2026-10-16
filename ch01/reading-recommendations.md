@@ -1,76 +1,63 @@
-# Recommendations for Getting the Most Out of a Technical Book
+# 充分利用技术类书籍的阅读建议
 
-Below are a few notes I previously shared when readers ask how to get the most out of my building large language model from scratch book(s).
+下面是我之前分享的一些建议，适用于读者询问如何充分阅读我从零开始构建大型语言模型的书籍（或系列）。
 
 
-I follow a similar approach when I read technical books myself. It is not meant as a universal recipe, but it may be a helpful starting point.
+我自己阅读技术书籍时也采用类似的方法。这并非放之四海而皆准的方案，但可以作为一个有用的起点。
 
-For this particular book, I strongly suggest reading it in order since each chapter depends on the previous one. And for each chapter, I recommend the following steps.
-
-&nbsp;
-### 1) First read (offline)
-
-I recommend reading the chapter from start to finish without any coding, yet.
-The goal of this first read-through is to get the big picture first.
-
-Ideally, I recommend reading the chapter away from the computer. A physical copy works
-well, but a digital device without distractions (no browser, social media, or
-email) works, too.
-
-Personally, I read both on paper and on an e-ink tablet. While I have used
-e-ink tablets since 2018, and always try to read more on e-ink, I still notice
-that physical copies help me focus better. That is also why I sometimes print
-research papers that are challenging or that I really want to understand in
-detail.
-
-My recommendation is to make the first read-through a short, focused 20-minute reading
-session with minimal distractions and without overthinking it or getting stuck
-with details.
-
-Highlighting or annotating confusing or interesting parts is
-fine, but I would not look things up at this stage. I just suggest reading, but
-not running any code yet. This first pass is meant to understand the bigger picture.
+对于这本书，我强烈建议按顺序阅读，因为每一章都以前一章为基础。对于每一章，我建议按以下步骤进行。
 
 &nbsp;
-### 2) Second read (with code)
+### 1）第一次阅读（离线）
 
-On the second read-through, I recommend typing up and running the code from the chapter. Copying code is tempting because retyping is a lot of work, but when I read other technical books, it usually helps me to think about the code a bit more (versus just glancing over it). 
+我建议先从头到尾阅读本章，暂时不要编写任何代码。
+第一次阅读的目标是先了解全貌。
 
-If I get different results than in the book, I would check the book's GitHub repo and try the code from there. If I still get different results, I would try to see if it's due to different package versions, random seeds, CPU/CUDA, etc. If I then still can't figure it out, asking the author would not be a bad idea (via the book forum, public GitHub repo issues or discussions, and as a last resort, email).
+理想情况下，我建议离开电脑阅读本章。纸质书很合适；使用没有干扰的数字设备（不打开浏览器、社交媒体或电子邮件）也可以。
 
-&nbsp;
-### 3) Exercises
+我个人既读纸质书，也读电子墨水屏平板上的内容。虽然我从 2018 年起就开始使用电子墨水屏平板，而且一直尽量多用电子墨水屏阅读，但我仍然发现纸质书能让我更专注。这也是我有时会打印那些难懂或特别想深入理解的研究论文的原因。
 
-After the second read-through, retyping and running the code, it's usually a good time to try the exercises. It's great for solidifying one's understanding or tinkering with a problem in a semi-structured way. If the exercise is too challenging, it's okay to look at the solution. However, I would still recommend giving it a solid try first.
+我建议把第一遍阅读安排成一个简短、专注的 20 分钟阅读时段，尽量减少干扰，不要想得太多，也不要卡在细节上。
 
-&nbsp;
-### 4) Review notes and explore further
-
-Now, after reading the chapter, running the code, and doing the exercises, I recommend going back to highlights and annotations from the previous two read-throughs and seeing if there's still something unclear.
-
-This is also a good time to look up additional references or do a quick search to clarify anything that still feels unresolved. But even if everything makes sense, reading more about a topic of interest is not a bad idea.
-
-At this stage, it also makes sense to write down or transfer useful insights, code snippets, etc., to your favorite note-taking app. 
+标出或注释让你困惑或感兴趣的部分没有问题，但我不建议此时查资料。我建议只阅读，暂时不要运行任何代码。第一遍的目的是理解整体内容。
 
 &nbsp;
-### 5) Use the ideas in a project
+### 2）第二次阅读（结合代码）
 
-The previous steps were all about soaking up knowledge. Now, see if you can use certain aspects of a chapter in your own project. Or maybe build a small project using the code from the book as a starting point. For inspiration, check out the bonus materials, which are basically mini-projects I did to satisfy my own curiosity.
+第二遍阅读时，我建议把本章的代码敲出来并运行。复制代码很诱人，因为重新输入要花不少时间；但我阅读其他技术书籍时发现，亲自输入通常能让我多思考一下代码（而不是只扫一眼）。
 
-For example, after reading about the multi-head attention mechanisms and implementing the LLM, you may wonder how well a model with grouped-query attention performs, or how much of a difference RMSNorm vs LayerNorm really makes. And so forth.
-
-There could also be smaller aspects that could be useful in your own projects. For example, sometimes it is a tiny detail that ends up being useful, like testing whether
-explicitly calling `torch.mps.manual_seed(seed)` changes anything
-compared to using `torch.manual_seed(seed)` alone.
-
-Eventually, though, I somehow want to use that knowledge. This could involve using the main concept from the chapter, but also sometimes minor tidbits I learned along the way, e.g., even trivial things like whether it actually makes a difference in my project to explicitly call 
-`torch.mps.manual_seed(seed)` instead of just `torch.manual_seed(seed)`.
+如果我得到的结果与书中不同，我会检查本书的 GitHub 仓库，并尝试其中的代码。如果结果仍然不同，我会看看是否由软件包版本、随机种子、CPU/CUDA 等因素造成。如果还是无法弄清楚，通过书籍论坛、公开 GitHub 仓库中的 issues 或 discussions，最后再通过电子邮件询问作者，也不失为一个好办法。
 
 &nbsp;
-### Additional thoughts
+### 3）练习
 
-Of course, none of the above is set in stone. If the topic is overall very familiar or easy, and I am primarily reading the book to get some information in later chapters, skimming a chapter is ok (to not waste my time).
+第二遍阅读、重新输入并运行代码后，通常就适合尝试练习题了。这有助于巩固理解，也能让你以半结构化的方式动手探索问题。如果练习题太难，查看答案也没关系。不过，我仍建议先认真尝试一下。
 
-Also, for chapters that don't have any code (for example, the introductory chapter 1), it makes of course sense to skip the code-related steps.
+&nbsp;
+### 4）回顾笔记并进一步探索
 
-Anyway, I hope this is useful. And happy reading and learning!
+读完本章、运行代码并完成练习后，我建议回头看看前两遍阅读时标记和写下的注释，确认是否还有不清楚的地方。
+
+此时也适合查找其他参考资料，或快速搜索仍未解决的问题。即使所有内容都已理解，继续阅读感兴趣主题的资料也不失为一个好主意。
+
+这个阶段也适合把有用的见解、代码片段等记录下来，或整理到你喜欢的笔记应用中。
+
+&nbsp;
+### 5）在项目中运用这些想法
+
+前面的步骤都是为了吸收知识。现在，看看能否在自己的项目中用上某一章的内容。或者，以书中的代码为起点构建一个小项目。若想寻找灵感，可以看看附加材料；它们基本上都是我出于好奇而做的小项目。
+
+例如，读完多头注意力机制并实现了大语言模型之后，你可能会想知道，采用分组查询注意力的模型表现如何，或者 RMSNorm 与 LayerNorm 的差别究竟有多大，等等。
+
+也可能有一些更小的细节对你的项目有用。例如，有时一个很小的细节最终会派上用场，比如测试显式调用 `torch.mps.manual_seed(seed)` 与只调用 `torch.manual_seed(seed)` 相比是否会带来任何变化。
+
+不过，最终我总是希望能以某种方式运用学到的知识。这可以是应用本章的主要概念，有时也可以是沿途学到的小细节，例如：在我的项目中，显式调用 `torch.mps.manual_seed(seed)` 而不是只调用 `torch.manual_seed(seed)`，实际上是否会有影响，即使这看起来微不足道。
+
+&nbsp;
+### 其他想法
+
+当然，以上做法并非一成不变。如果主题总体上很熟悉或很简单，而我主要是为了了解后续章节中的内容才读这本书，那么略读一章也可以（这样不会浪费时间）。
+
+另外，对于没有代码的章节（例如第 1 章导论），跳过与代码有关的步骤自然是合理的。
+
+总之，希望这些建议对你有用。祝你阅读愉快、学有所获！

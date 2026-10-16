@@ -1,3 +1,3 @@
-# Optional Docker Environment
+# 可选 Docker 环境
 
-This is an optional Docker environment for those users who prefer Docker. In case you are interested in using this Docker DevContainer, please see the *Using Docker DevContainers* section in the [../../README.md](../../README.md) for more information.
+这是为偏好 Docker 的用户提供的可选 Docker 环境。如果有兴趣使用此 Docker DevContainer，请参阅 [../../README.md](../../README.md) 中的“使用 Docker DevContainer”一节，了解更多信息。

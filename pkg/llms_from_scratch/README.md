@@ -1,20 +1,20 @@
-# `llms-from-scratch` PyPI Package
+# PyPI 软件包 `llms-from-scratch`
 
-This optional PyPI package lets you conveniently import code from various chapters of the *Build a Large Language Model From Scratch* book.
-
-&nbsp;
-## Installation
+这个可选 PyPI 软件包可让你方便地导入《从零开始构建大型语言模型》一书各章节中的代码。
 
 &nbsp;
-### From PyPI
+## 安装
 
-Install the `llms-from-scratch` package from the official [Python Package Index](https://pypi.org/project/llms-from-scratch/) (PyPI):
+&nbsp;
+### 从 PyPI 安装
+
+从官方 [Python 软件包索引](https://pypi.org/project/llms-from-scratch/)（PyPI）安装 `llms-from-scratch` 软件包：
 
 ```bash
 pip install llms-from-scratch
 ```
 
-> **Note:** If you're using [`uv`](https://github.com/astral-sh/uv), replace `pip` with `uv pip` or use `uv add`:
+> **注意：**如果你使用 [`uv`](https://github.com/astral-sh/uv)，请用 `uv pip` 替换 `pip`，或者使用 `uv add`：
 
 ```bash
 uv add llms-from-scratch
@@ -23,9 +23,9 @@ uv add llms-from-scratch
 
 
 &nbsp;
-### Editable Install from GitHub
+### 从 GitHub 以可编辑模式安装
 
-If you'd like to modify the code and have those changes reflected during development:
+如果你想修改代码，并在开发过程中立即使用这些改动：
 
 ```bash
 git clone https://github.com/rasbt/LLMs-from-scratch.git
@@ -33,7 +33,7 @@ cd LLMs-from-scratch
 pip install -e .
 ```
 
-> **Note:** With `uv`, use:
+> **注意：**使用 `uv` 时，请运行：
 
 ```bash
 uv add --editable . --dev
@@ -42,9 +42,9 @@ uv add --editable . --dev
 
 
 &nbsp;
-## Using the Package
+## 使用此软件包
 
-Once installed, you can import code from any chapter using:
+安装后，你可以使用以下方式导入任意章节中的代码：
 
 ```python
 from llms_from_scratch.ch02 import GPTDatasetV1, create_dataloader_v1
@@ -115,20 +115,20 @@ from llms_from_scratch.appendix_d import find_highest_gradient, train_model
 
 &nbsp;
 
-### GPT-2 KV cache variant (Bonus material)
+### GPT-2 KV 缓存变体（附加材料）
 
 ```python
 from llms_from_scratch.kv_cache.gpt2 import GPTModel
 from llms_from_scratch.kv_cache.generate import generate_text_simple
 ```
 
-For more information about KV caching, please see the [KV cache README](../../ch04/03_kv-cache).
+有关 KV 缓存的更多信息，请参阅 [KV 缓存自述文件](../../ch04/03_kv-cache)。
 
 
 
 &nbsp;
 
-### Llama  3 (Bonus material)
+### Llama  3（附加材料）
 
 ```python
 from llms_from_scratch.llama3 import (
@@ -145,13 +145,13 @@ from llms_from_scratch.kv_cache.llama3 import Llama3Model
 from llms_from_scratch.kv_cache.generate import generate_text_simple
 ```
 
-For the `llms_from_scratch.llama3` usage information, please see [this bonus section](../../ch05/07_gpt_to_llama/README.md). 
+关于 `llms_from_scratch.llama3` 的用法，请参阅[此附加章节](../../ch05/07_gpt_to_llama/README.md)。
 
-For more information about KV caching, please see the [KV cache README](../../ch04/03_kv-cache).
+有关 KV 缓存的更多信息，请参阅 [KV 缓存自述文件](../../ch04/03_kv-cache)。
 
 
 &nbsp;
-### Qwen3 (Bonus material)
+### Qwen3（附加材料）
 
 ```python
 from llms_from_scratch.qwen3 import (
@@ -175,6 +175,6 @@ from llms_from_scratch.kv_cache_batched.generate import (
 from llms_from_scratch.kv_cache_batched.qwen3 import Qwen3Model
 ```
 
-For the `llms_from_scratch.qwen3` usage information, please see [this bonus section](../../ch05/11_qwen3/README.md).
+关于 `llms_from_scratch.qwen3` 的用法，请参阅[此附加章节](../../ch05/11_qwen3/README.md)。
 
-For more information about KV caching, please see the [KV cache README](../../ch04/03_kv-cache).
+有关 KV 缓存的更多信息，请参阅 [KV 缓存自述文件](../../ch04/03_kv-cache)。

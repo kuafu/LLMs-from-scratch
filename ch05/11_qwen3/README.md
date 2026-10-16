@@ -1,48 +1,48 @@
-# Qwen3 From Scratch
+# 从零实现 Qwen3
 
-This [standalone-qwen3.ipynb](standalone-qwen3.ipynb) Jupyter notebook in this folder contains a from-scratch implementation of Qwen3 0.6B, 1.7B, 4B, 8B, and 32B.
+本文件夹中的 Jupyter 笔记本 [standalone-qwen3.ipynb](standalone-qwen3.ipynb) 从零实现了 Qwen3 0.6B、1.7B、4B、8B 和 32B。
 
 <img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/qwen/qwen-overview.webp">
 
 
-This [standalone-qwen3-moe.ipynb](standalone-qwen3-moe.ipynb) and [standalone-qwen3-moe-plus-kvcache.ipynb](standalone-qwen3-moe-plus-kvcache.ipynb) Jupyter notebooks in this folder contain a from-scratch implementation of 30B-A3B Mixture-of-Experts (MoE), including the Thinking, Instruct, and Coder model variants.
+本文件夹中的 Jupyter 笔记本 [standalone-qwen3-moe.ipynb](standalone-qwen3-moe.ipynb) 和 [standalone-qwen3-moe-plus-kvcache.ipynb](standalone-qwen3-moe-plus-kvcache.ipynb) 从零实现了 30B-A3B 混合专家（MoE）模型，包括 Thinking、Instruct 和 Coder 模型变体。
 
 <img src="https://sebastianraschka.com/images/LLMs-from-scratch-images/bonus/qwen/qwen3-coder-flash-overview.webp?123" width="430px">
 
 &nbsp;
-# Qwen3 from-scratch code
+# Qwen3 从零实现代码
 
-The standalone notebooks in this folder contain from-scratch codes in linear fashion:
+本文件夹中的独立笔记本按线性流程展示了从零实现的代码：
 
-1. [standalone-qwen3.ipynb](standalone-qwen3.ipynb): The dense Qwen3 model without bells and whistles
-2. [standalone-qwen3-plus-kvcache.ipynb](standalone-qwen3-plus-kvcache.ipynb): Same as above but with KV cache for better inference efficiency
-3. [standalone-qwen3-moe.ipynb](standalone-qwen3-moe.ipynb): Like the first notebook but the Mixture-of-Experts (MoE) variant
-4. [standalone-qwen3-moe-plus-kvcache.ipynb](standalone-qwen3-moe-plus-kvcache.ipynb): Same as above but with KV cache for better inference efficiency
+1. [standalone-qwen3.ipynb](standalone-qwen3.ipynb)：不含额外功能的 Qwen3 稠密模型
+2. [standalone-qwen3-plus-kvcache.ipynb](standalone-qwen3-plus-kvcache.ipynb)：与上面相同，但加入了 KV 缓存 以提高推理效率
+3. [standalone-qwen3-moe.ipynb](standalone-qwen3-moe.ipynb)：类似第一个笔记本，但实现的是混合专家（MoE）变体
+4. [standalone-qwen3-moe-plus-kvcache.ipynb](standalone-qwen3-moe-plus-kvcache.ipynb)：与上面相同，但加入了 KV 缓存 以提高推理效率
 
-Alternatively, I also organized the code into a Python package [here](../../pkg/llms_from_scratch/) (including unit tests and CI), which you can run as described below.
-
-&nbsp;
-# Training
-
-The `Qwen3Model` class is implemented in a similar style as the `GPTModel` class, so it can be used as a drop-in replacement for training in chapter 5 and finetuning in chapters 6 and 7.
-
+此外，我还将代码整理成了一个 Python 软件包[，见此处](../../pkg/llms_from_scratch/)（包含单元测试和 CI）；你可以按照下文说明运行它。
 
 &nbsp;
-# Using Qwen3 via the `llms-from-scratch` package
+# 训练
 
-For an easy way to use the Qwen3 from-scratch implementation, you can also use the `llms-from-scratch` PyPI package based on the source code in this repository at [pkg/llms_from_scratch](../../pkg/llms_from_scratch).
+`Qwen3Model` 类的实现风格与 `GPTModel` 类类似，因此可以直接替代后者，用于第 5 章中的训练以及第 6、7 章中的微调。
+
 
 &nbsp;
-#### 1) Installation
+# 通过 `llms-from-scratch` 软件包使用 Qwen3
+
+如果想更方便地使用 Qwen3 的从零实现，也可以使用基于本仓库源代码的 `llms-from-scratch` PyPI 软件包：[pkg/llms_from_scratch](../../pkg/llms_from_scratch)。
+
+&nbsp;
+#### 1）安装
 
 ```bash
 pip install llms_from_scratch tokenizers
 ```
 
 &nbsp;
-#### 2) Model and text generation settings
+#### 2）模型和文本生成设置
 
-Specify which model to use:
+指定要使用的模型：
 
 ```python
 USE_REASONING_MODEL = True
@@ -60,7 +60,7 @@ USE_INSTRUCT_MODEL = False
 # For Qwen3 Coder Flash model as well
 ```
 
-Basic text generation settings that can be defined by the user. With 150 tokens, the 0.6B model requires approximately 1.5 GB memory.
+用户可以自行设置以下基本文本生成参数。生成 150 个词元时，0.6B 模型需要约 1.5 GB 内存。
 
 ```python
 MAX_NEW_TOKENS = 150
@@ -69,9 +69,9 @@ TOP_K = 1
 ```
 
 &nbsp;
-#### 3a) Weight download and loading of the 0.6B model
+#### 3a）下载并加载 0.6B 模型的权重
 
-The following automatically downloads the weight file based on the model choice (reasoning or base) above. Note that this section focuses on the 0.6B model. Skip this section and continue with section 3b) if you want to work with any of the larger models (1.7B, 4B, 8B, or 32B).
+以下代码会根据上面选择的模型（reasoning 或 base）自动下载权重文件。请注意，本节聚焦于 0.6B 模型。如果想使用更大的模型（1.7B、4B、8B 或 32B），请跳过本节并继续阅读 3b）节。
 
 ```python
 from llms_from_scratch.qwen3 import download_from_huggingface
@@ -92,7 +92,7 @@ download_from_huggingface(
 )
 ```
 
-The model weights are then loaded as follows:
+然后按如下方式加载模型权重：
 
 ```python
 from pathlib import Path
@@ -114,15 +114,15 @@ model.to(device);
 ```
 
 &nbsp;
-#### 3b) Weight download and loading of the larger Qwen models
+#### 3b）下载并加载更大型 Qwen 模型的权重
 
-If you are interested in working with any of the larger Qwen models, for instance, 1.7B, 4B, 8B, or 32B, please use the following code below instead of the code under 3a), which requires additional code dependencies:
+如果想使用更大型的 Qwen 模型（例如 1.7B、4B、8B 或 32B），请使用以下代码，而不是 3a）节中的代码；此处需要额外的代码依赖项：
 
 ```bash
 pip install safetensors huggingface_hub
 ```
 
-Then use the following code (make appropriate changes to `USE_MODEL` to select the desired model size)
+然后使用以下代码（适当修改 `USE_MODEL`，以选择所需的模型大小）：
 
 ```python
 USE_MODEL = "1.7B"
@@ -150,7 +150,7 @@ if not USE_REASONING_MODEL:
   local_dir = f"{local_dir}-Base"
 ```
 
-Now, download and load the weights into the `model`:
+现在，下载权重并将其加载到 `model` 中：
 
 ```python
 from llms_from_scratch.qwen3 import (
@@ -180,9 +180,9 @@ del weights_dict  # delete weight dictionary to free up disk space
 
 &nbsp;
 
-#### 4) Initialize tokenizer
+#### 4）初始化分词器
 
-The following code downloads and initializes the tokenizer:
+以下代码会下载并初始化分词器：
 
 ```python
 from llms_from_scratch.qwen3 import Qwen3Tokenizer
@@ -205,9 +205,9 @@ tokenizer = Qwen3Tokenizer(
 
 &nbsp;
 
-#### 5) Generating text
+#### 5）生成文本
 
-Lastly, we can generate text via the following code:
+最后，我们可以通过以下代码生成文本：
 
 ```python
 prompt = "Give me a short introduction to large language models."
@@ -249,7 +249,7 @@ output_text = tokenizer.decode(output_token_ids.squeeze(0).tolist())
 print("\n\nOutput text:\n\n", output_text + "...")
 ```
 
-When using the Qwen3 0.6B reasoning model, the output should look similar to the one shown below (this was run on an A100):
+使用 Qwen3 0.6B 推理模型时，输出应与下方示例相似（此示例在 A100 上运行）：
 
 ```
 Time: 6.35 sec
@@ -266,7 +266,7 @@ Large language models (LLMs) are advanced artificial intelligence systems design
 
 
 
-For the larger models, you may prefer the streaming variant, which prints each token as soon as it's generated:
+对于更大的模型，你可能更喜欢流式版本，它会在每个词元生成后立即将其打印出来：
 
 ```python
 from llms_from_scratch.generate import generate_text_simple_stream
@@ -297,36 +297,37 @@ Large language models (LLMs) are advanced artificial intelligence systems design
 
 &nbsp;
 
-#### Pro tip 1: speed up inference with compilation
+#### 专业提示 1：通过编译加快推理
 
 
-For up to a 4× speed-up, replace
+如需获得最高 4× 的加速，可将
 
 ```python
 model.to(device)
 ```
 
-with
+替换为
 
 ```python
 model.to(device)
 model = torch.compile(model)
 ```
 
-Note: There is a significant multi-minute upfront cost when compiling, and the speed-up takes effect after the first `generate` call. 
+注意：编译前期会产生数分钟的显著开销，并且要在第一次调用 `generate` 后才会体现加速效果。
 
-The following table shows a performance comparison on an A100 for consequent `generate` calls:
+下表展示了在 A100 上连续调用 `generate` 时的性能对比：
 
-|                          | Hardware        | Tokens/sec | Memory   |
+|                          | 硬件            | 令牌/秒    | 内存     |
 | ------------------------ | ----------------|----------- | -------- |
 | Qwen3Model 0.6B          | Nvidia A100 GPU | 25         | 1.49 GB  |
 | Qwen3Model 0.6B compiled | Nvidia A100 GPU | 107        | 1.99 GB  |
 
 
 &nbsp;
-#### Pro tip 2: speed up inference with KV cache
+<a id="pro-tip-2-speed-up-inference-with-compilation"></a>
+#### 专业提示 2：使用 KV 缓存 加快推理
 
-You can significantly boost inference performance using the KV cache `Qwen3Model` drop-in replacement when running the model on a CPU. (See my [Understanding and Coding the KV Cache in LLMs from Scratch](https://magazine.sebastianraschka.com/p/coding-the-kv-cache-in-llms) article to learn more about KV caches.)
+在 CPU 上运行模型时，使用带 KV 缓存 的 `Qwen3Model` 直接替代品可以显著提升推理性能。（有关 KV 缓存 的更多信息，请参阅我的文章[从零理解并编写 LLM 中的 KV 缓存](https://magazine.sebastianraschka.com/p/coding-the-kv-cache-in-llms)。）
 
 ```python
 from llms_from_scratch.kv_cache.qwen3 import Qwen3Model
@@ -342,36 +343,36 @@ token_ids = generate_text_simple(
 )
 ```
 
-Note that the peak memory usage is only listed for Nvidia CUDA devices, as it is easier to calculate. However, the memory usage on other devices is likely similar as it uses a similar precision format, and the KV cache storage results in even lower memory usage here for the generated 150-token text (however, different devices may implement matrix multiplication differently and may result in different peak memory requirements; and KV-cache memory may increase prohibitively for longer context lengths).
+请注意，由于更容易计算，表中只列出了 Nvidia CUDA 设备的峰值内存用量。不过，其他设备使用相似的精度格式，因此其内存用量可能也相近；在此生成 150 词元文本时，KV 缓存 的存储甚至会进一步降低内存用量。（不过，不同设备可能以不同方式实现矩阵乘法，因而峰值内存需求可能不同；上下文长度增加时，KV 缓存 的内存占用也可能大幅增长。）
 
-| Model           | Mode              | Hardware        | Tokens/sec | GPU Memory (VRAM) |
+| 模型            | 模式              | 硬件            | 令牌/秒    | GPU 内存（VRAM）   |
 | --------------- | ----------------- | --------------- | ---------- | ----------------- |
-| Qwen3Model 0.6B | Regular           | Mac Mini M4 CPU | 1          | -                 |
-| Qwen3Model 0.6B | Regular compiled  | Mac Mini M4 CPU | 1          | -                 |
-| Qwen3Model 0.6B | KV cache          | Mac Mini M4 CPU | 80         | -                 |
-| Qwen3Model 0.6B | KV cache compiled | Mac Mini M4 CPU | 137        | -                 |
+| Qwen3Model 0.6B | 普通              | Mac Mini M4 CPU | 1          | -                 |
+| Qwen3Model 0.6B | 普通（已编译）    | Mac Mini M4 CPU | 1          | -                 |
+| Qwen3Model 0.6B | KV 缓存          | Mac Mini M4 CPU | 80         | -                 |
+| Qwen3Model 0.6B | KV 缓存（已编译）| Mac Mini M4 CPU | 137        | -                 |
 |                 |                   |                 |            |                   |
-| Qwen3Model 0.6B | Regular           | Mac Mini M4 GPU | 21         | -                 |
-| Qwen3Model 0.6B | Regular compiled  | Mac Mini M4 GPU | Error      | -                 |
-| Qwen3Model 0.6B | KV cache          | Mac Mini M4 GPU | 28         | -                 |
-| Qwen3Model 0.6B | KV cache compiled | Mac Mini M4 GPU | Error      | -                 |
+| Qwen3Model 0.6B | 普通              | Mac Mini M4 GPU | 21         | -                 |
+| Qwen3Model 0.6B | 普通（已编译）    | Mac Mini M4 GPU | 错误       | -                 |
+| Qwen3Model 0.6B | KV 缓存          | Mac Mini M4 GPU | 28         | -                 |
+| Qwen3Model 0.6B | KV 缓存（已编译）| Mac Mini M4 GPU | 错误       | -                 |
 |                 |                   |                 |            |                   |
-| Qwen3Model 0.6B | Regular           | Nvidia A100 GPU | 26         | 1.49 GB           |
-| Qwen3Model 0.6B | Regular compiled  | Nvidia A100 GPU | 107        | 1.99 GB           |
-| Qwen3Model 0.6B | KV cache          | Nvidia A100 GPU | 25         | 1.47 GB           |
-| Qwen3Model 0.6B | KV cache compiled | Nvidia A100 GPU | 90         | 1.48 GB           |
+| Qwen3Model 0.6B | 普通              | Nvidia A100 GPU | 26         | 1.49 GB           |
+| Qwen3Model 0.6B | 普通（已编译）    | Nvidia A100 GPU | 107        | 1.99 GB           |
+| Qwen3Model 0.6B | KV 缓存          | Nvidia A100 GPU | 25         | 1.47 GB           |
+| Qwen3Model 0.6B | KV 缓存（已编译）| Nvidia A100 GPU | 90         | 1.48 GB           |
 
-Note that all settings above have been tested to produce the same text outputs.
+请注意，以上所有设置都经过测试，生成的文本输出相同。
 
 
 
 &nbsp;
 
-#### Pro tip 3: batched inference
+#### 专业提示 3：批量推理
 
-We can further increase the throughput via batched inference. While it's not an apples-to-apples comparison, as we are now running inference with a higher number of input sequences, this increases the tokens per second throughput while trading it off against increased memory usage.
+通过批量推理，我们可以进一步提高吞吐量。由于现在使用更多输入序列进行推理，这并非完全公平的对比；这种做法以增加内存使用为代价，提高了每秒处理的词元数。
 
-This only requires a small code modification with respect to preparing the prompt. For example, consider this batched prompt below:
+只需对提示词的准备代码稍作修改即可。以下是一个批量提示词示例：
 
 ```python
 from llms_from_scratch.ch04 import generate_text_simple
@@ -404,7 +405,7 @@ output_token_ids = generate_text_simple(
 )
 ```
 
-The code for the KV cache version is similar, except that it requires using these drop-in replacements:
+KV 缓存 版本的代码与之类似，但需要使用以下可直接替换的模块：
 
 ```python
 from llms_from_scratch.kv_cache_batched.generate import generate_text_simple
@@ -412,22 +413,22 @@ from llms_from_scratch.kv_cache_batched.qwen3 import Qwen3Model
 ```
 
 
-The experiments below are run with a batch size of 8.
+以下实验使用的批量大小为 8。
 
-| Model            | Mode              | Hardware        | Batch size | Tokens/sec | GPU Memory (VRAM) |
+| 模型             | 模式              | 硬件            | 批量大小   | 令牌/秒   | GPU 内存（VRAM）   |
 | ---------------- | ----------------- | --------------- | ---------- | ---------- | ----------------- |
-| Qwen3Model  0.6B | Regular           | Mac Mini M4 CPU | 8          | 2          | -                 |
-| Qwen3Model 0.6B  | Regular compiled  | Mac Mini M4 CPU | 8          | -          | -                 |
-| Qwen3Model 0.6B  | KV cache          | Mac Mini M4 CPU | 8          | 92         | -                 |
-| Qwen3Model 0.6B  | KV cache compiled | Mac Mini M4 CPU | 8          | 128        | -                 |
+| Qwen3Model  0.6B | 普通              | Mac Mini M4 CPU | 8          | 2          | -                 |
+| Qwen3Model 0.6B  | 普通（已编译）    | Mac Mini M4 CPU | 8          | -          | -                 |
+| Qwen3Model 0.6B  | KV 缓存          | Mac Mini M4 CPU | 8          | 92         | -                 |
+| Qwen3Model 0.6B  | KV 缓存（已编译）| Mac Mini M4 CPU | 8          | 128        | -                 |
 |                  |                   |                 |            |            |                   |
-| Qwen3Model 0.6B  | Regular           | Mac Mini M4 GPU | 8          | 36         | -                 |
-| Qwen3Model 0.6B  | Regular compiled  | Mac Mini M4 GPU | 8          | -          | -                 |
-| Qwen3Model 0.6B  | KV cache          | Mac Mini M4 GPU | 8          | 61         | -                 |
-| Qwen3Model 0.6B  | KV cache compiled | Mac Mini M4 GPU | 8          | -          | -                 |
+| Qwen3Model 0.6B  | 普通              | Mac Mini M4 GPU | 8          | 36         | -                 |
+| Qwen3Model 0.6B  | 普通（已编译）    | Mac Mini M4 GPU | 8          | -          | -                 |
+| Qwen3Model 0.6B  | KV 缓存          | Mac Mini M4 GPU | 8          | 61         | -                 |
+| Qwen3Model 0.6B  | KV 缓存（已编译）| Mac Mini M4 GPU | 8          | -          | -                 |
 |                  |                   |                 |            |            |                   |
-| Qwen3Model 0.6B  | Regular           | Nvidia A100 GPU | 8          | 184        | 2.19 GB           |
-| Qwen3Model 0.6B  | Regular compiled  | Nvidia A100 GPU | 8          | 351        | 2.19 GB           |
-| Qwen3Model 0.6B  | KV cache          | Nvidia A100 GPU | 8          | 140        | 3.13 GB           |
-| Qwen3Model 0.6B  | KV cache compiled | Nvidia A100 GPU | 8          | 280        | 1.75 GB           |
+| Qwen3Model 0.6B  | 普通              | Nvidia A100 GPU | 8          | 184        | 2.19 GB           |
+| Qwen3Model 0.6B  | 普通（已编译）    | Nvidia A100 GPU | 8          | 351        | 2.19 GB           |
+| Qwen3Model 0.6B  | KV 缓存          | Nvidia A100 GPU | 8          | 140        | 3.13 GB           |
+| Qwen3Model 0.6B  | KV 缓存（已编译）| Nvidia A100 GPU | 8          | 280        | 1.75 GB           |
 

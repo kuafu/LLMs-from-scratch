@@ -1,18 +1,18 @@
-# Chapter 7: Finetuning to Follow Instructions
+# 第 7 章：指令遵循微调
 
 &nbsp;
-## Main Chapter Code
+## 本章主要代码
 
-- [01_main-chapter-code](01_main-chapter-code) contains the main chapter code and exercise solutions
+- [01_main-chapter-code](01_main-chapter-code) 包含本章主要代码和练习题答案
 
 &nbsp;
-## Bonus Materials
+## 附加材料
 
-- [02_dataset-utilities](02_dataset-utilities) contains utility code that can be used for preparing an instruction dataset
-- [03_model-evaluation](03_model-evaluation) contains utility code for evaluating instruction responses using a local Llama 3 model and the GPT-4 API
-- [04_preference-tuning-with-dpo](04_preference-tuning-with-dpo) implements code for preference finetuning with Direct Preference Optimization (DPO)
-- [05_dataset-generation](05_dataset-generation) contains code to generate and improve synthetic datasets for instruction finetuning
-- [06_user_interface](06_user_interface) implements an interactive user interface to interact with the pretrained LLM
+- [02_dataset-utilities](02_dataset-utilities) 包含用于准备指令数据集的实用代码
+- [03_model-evaluation](03_model-evaluation) 包含实用代码，可使用本地 Llama 3 模型和 GPT-4 API 评估指令响应
+- [04_preference-tuning-with-dpo](04_preference-tuning-with-dpo) 实现了使用直接偏好优化（DPO）进行偏好微调的代码
+- [05_dataset-generation](05_dataset-generation) 包含用于生成和改进指令微调合成数据集的代码
+- [06_user_interface](06_user_interface) 实现了可与预训练大语言模型交互的用户界面
 
 
 
@@ -21,4 +21,4 @@
 <br>
 <br>
 
-[![Link to the video](https://img.youtube.com/vi/4yNswvhPWCQ/0.jpg)](https://www.youtube.com/watch?v=4yNswvhPWCQ)
+[![视频链接](https://img.youtube.com/vi/4yNswvhPWCQ/0.jpg)](https://www.youtube.com/watch?v=4yNswvhPWCQ)
