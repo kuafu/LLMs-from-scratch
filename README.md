@@ -59,6 +59,7 @@ git clone --depth 1 https://github.com/rasbt/LLMs-from-scratch.git
 [![macOS 代码测试](https://github.com/rasbt/LLMs-from-scratch/actions/workflows/basic-tests-macos-uv.yml/badge.svg)](https://github.com/rasbt/LLMs-from-scratch/actions/workflows/basic-tests-macos-uv.yml)
 
 - [故障排查指南](./troubleshooting.md)
+- [LLM 术语与缩写速查](./LLM术语与缩写速查.md)
 
 
 | 章节标题                                                   | 主要代码（快速访问）                                                                                                             | 全部代码与补充资料             |
