@@ -262,33 +262,58 @@
 
 ## 缩写查找
 
-| 缩写 | 中文名称 | 缩写 | 中文名称 |
-| --- | --- | --- | --- |
-| BF16 | 脑浮点 16 位 | BOS | 序列开始标记 |
-| BPE | 字节对编码 | CPU | 中央处理器 |
-| CUDA | NVIDIA GPU 计算平台 | DDP | 分布式数据并行 |
-| DPO | 直接偏好优化 | DSA | DeepSeek 稀疏注意力 |
-| EOS | 序列结束标记 | FFN | 前馈网络 |
-| FLOPs | 浮点运算次数 | FLOPS | 每秒浮点运算次数 |
-| FP16 / FP32 | 半精度 / 单精度浮点 | GaLore | 梯度低秩投影 |
-| GELU | 高斯误差线性单元 | GLU | 门控线性单元 |
-| GPT | 生成式预训练 Transformer | GPU | 图形处理器 |
-| GQA | 分组查询注意力 | KDA | Kimi Delta 注意力 |
-| KV | 键与值 | LLM | 大语言模型 |
-| LM | 语言模型 | LoRA | 低秩自适应 |
-| LR | 学习率 | MFU | 模型算力利用率 |
-| MHA | 多头注意力 | MLA | 多头潜在注意力 |
-| MLP | 多层感知机 | MMLU | 多学科语言理解基准 |
-| MoE | 混合专家 | MPS | Apple Metal 加速后端 |
-| MQA | 多查询注意力 | NLP | 自然语言处理 |
-| OOM | 内存不足 | PAD | 填充标记 |
-| PEFT | 参数高效微调 | PPL | 困惑度 |
-| ReLU | 修正线性单元 | RLHF | 基于人类反馈的强化学习 |
-| RMSNorm | 均方根归一化 | RoPE | 旋转位置嵌入 |
-| SDPA | 缩放点积注意力 | SFT | 监督微调 |
-| SiLU | Sigmoid 线性单元 | SWA | 滑动窗口注意力 |
-| SwiGLU | Swish 门控线性单元 | TF32 | TensorFloat-32 |
-| UNK | 未知词元 | VRAM | 显存 |
+| 缩写 | 英文全称 | 中文名称 |
+| --- | --- | --- |
+| BF16 | Brain Floating Point（16-bit） | 脑浮点 16 位 |
+| BOS | Beginning of Sequence | 序列开始标记 |
+| BPE | Byte Pair Encoding | 字节对编码 |
+| CPU | Central Processing Unit | 中央处理器 |
+| CUDA | Compute Unified Device Architecture | NVIDIA GPU 计算平台 |
+| DDP | Distributed Data Parallel | 分布式数据并行 |
+| DPO | Direct Preference Optimization | 直接偏好优化 |
+| DSA | DeepSeek Sparse Attention | DeepSeek 稀疏注意力 |
+| EOS | End of Sequence | 序列结束标记 |
+| FFN | Feed-Forward Network | 前馈网络 |
+| FLOPs | Floating-Point Operations | 浮点运算次数 |
+| FLOPS | Floating-Point Operations Per Second | 每秒浮点运算次数 |
+| FP16 / FP32 | 16-bit / 32-bit Floating Point | 半精度 / 单精度浮点 |
+| GaLore | Gradient Low-Rank Projection | 梯度低秩投影 |
+| GELU | Gaussian Error Linear Unit | 高斯误差线性单元 |
+| GLU | Gated Linear Unit | 门控线性单元 |
+| GPT | Generative Pre-trained Transformer | 生成式预训练 Transformer |
+| GPU | Graphics Processing Unit | 图形处理器 |
+| GQA | Grouped-Query Attention | 分组查询注意力 |
+| KDA | Kimi Delta Attention | Kimi Delta 注意力 |
+| KV | Key–Value | 键与值 |
+| LLM | Large Language Model | 大语言模型 |
+| LM | Language Model | 语言模型 |
+| LoRA | Low-Rank Adaptation | 低秩自适应 |
+| LR | Learning Rate | 学习率 |
+| MFU | Model FLOPs Utilization | 模型算力利用率 |
+| MHA | Multi-Head Attention | 多头注意力 |
+| MLA | Multi-Head Latent Attention | 多头潜在注意力 |
+| MLP | Multi-Layer Perceptron | 多层感知机 |
+| MMLU | Massive Multitask Language Understanding | 多学科语言理解基准 |
+| MoE | Mixture of Experts | 混合专家 |
+| MPS | Metal Performance Shaders | Apple Metal 加速后端 |
+| MQA | Multi-Query Attention | 多查询注意力 |
+| NLP | Natural Language Processing | 自然语言处理 |
+| OOM | Out of Memory | 内存不足 |
+| PAD | Padding | 填充标记 |
+| PEFT | Parameter-Efficient Fine-Tuning | 参数高效微调 |
+| PPL | Perplexity | 困惑度 |
+| ReLU | Rectified Linear Unit | 修正线性单元 |
+| RLHF | Reinforcement Learning from Human Feedback | 基于人类反馈的强化学习 |
+| RMSNorm | Root Mean Square Normalization | 均方根归一化 |
+| RoPE | Rotary Position Embedding | 旋转位置嵌入 |
+| SDPA | Scaled Dot-Product Attention | 缩放点积注意力 |
+| SFT | Supervised Fine-Tuning | 监督微调 |
+| SiLU | Sigmoid Linear Unit | Sigmoid 线性单元 |
+| SWA | Sliding Window Attention | 滑动窗口注意力 |
+| SwiGLU | Swish-Gated Linear Unit | Swish 门控线性单元 |
+| TF32 | TensorFloat-32 | TensorFloat-32 |
+| UNK | Unknown | 未知词元 |
+| VRAM | Video Random Access Memory | 显存 |
 
 <!-- 上表中的资料链接定义 -->
 
