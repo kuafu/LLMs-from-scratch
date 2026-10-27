@@ -9,7 +9,7 @@
 | 组件 | 最低要求 / 推荐版本 | 说明 |
 | :--- | :--- | :--- |
 | **操作系统** | Windows 10 / 11 (x64) | 64 位操作系统 |
-| **C++ 编译器** | MSVC 2019 / 2022 (v142 或更高) | 需要支持 C++17 标准，推荐 Visual Studio 2022 |
+| **C++ 编译器** | MSVC 2019 / 2022 (v142 或更高) | 需要支持 C++20 标准（LibTorch 2.4+ 依赖 C++20），推荐 Visual Studio 2022 |
 | **构建工具** | CMake >= 3.18 | 需配置在系统 `PATH` 环境变量中 |
 | **核心依赖** | LibTorch (CPU 或 CUDA) | 位于 `H:\LLM\libtorch` 或 `F:\LLM\libtorch` |
 
@@ -22,7 +22,7 @@
 
 ### 方法 A：一键双击运行批处理脚本（推荐）
 在 `gpt2cpp` 目录下，直接双击运行：
-👉 **[`generate_sln.bat`](file:///F:/LLM/BuildLLM/LLMs-from-scratch/ch04/01_main-chapter-code/gpt2cpp/generate_sln.bat)**
+👉 **[`generate_sln.bat`](file:///H:/LLM/BuildLLM/LLMs-from-scratch/gpt2cpp/generate_sln.bat)**
 
 脚本会自动探测 LibTorch 路径（支持 `H:\LLM\libtorch` 与 `F:\LLM\libtorch`），并在 `build` 目录下生成 `gpt_cpp.sln` 解决方案。随后你可以直接用 Visual Studio 双击打开该 `.sln` 文件进行编译和调试。
 

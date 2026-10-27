@@ -26,9 +26,10 @@ if "%LIBTORCH_PATH%"=="" (
 
 echo [INFO] Using LibTorch from: %LIBTORCH_PATH%
 echo [INFO] CMake Generator: Visual Studio 17 2022 (x64)
+echo [INFO] CUDA: Disabled (CPU mode)
 echo.
 
-cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="%LIBTORCH_PATH%"
+cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="%LIBTORCH_PATH%" -DUSE_CUDA=OFF
 
 if %ERRORLEVEL% equ 0 (
     echo.
