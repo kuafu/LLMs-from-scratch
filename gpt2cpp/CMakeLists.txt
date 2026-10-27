@@ -28,8 +28,15 @@ endif()
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-add_executable(gpt gpt.cpp)
-target_link_libraries(gpt "${TORCH_LIBRARIES}")
+# 优先探测包含 tiktoken 的 Python 环境 (例如 C:/Python313)
+if(NOT DEFINED Python3_ROOT_DIR AND EXISTS "C:/Python313")
+    set(Python3_ROOT_DIR "C:/Python313")
+endif()
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+message(STATUS "Using Python3 from: ${Python3_EXECUTABLE}")
+
+add_executable(gpt gpt.cpp TiktokenDecoder.cpp TiktokenDecoder.h)
+target_link_libraries(gpt PRIVATE "${TORCH_LIBRARIES}" Python3::Python)
 
 set_property(TARGET gpt PROPERTY CXX_STANDARD 20)
 

@@ -1,4 +1,5 @@
 #include <torch/torch.h>
+#include "TiktokenDecoder.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -314,8 +315,11 @@ int main() {
 
     std::string start_context = "Hello, I am";
 
-    // 对应 tiktoken gpt2 对 "Hello, I am" 编码的结果 [15496, 11, 314, 716]
-    std::vector<int64_t> encoded = {15496, 11, 314, 716};
+    TiktokenDecoder tokenizer("gpt2");
+    std::vector<int64_t> encoded = tokenizer.encode(start_context);
+    if (encoded.empty()) {
+        encoded = {15496, 11, 314, 716};
+    }
     auto encoded_tensor = torch::tensor(encoded, torch::kInt64).unsqueeze(0);
 
     std::cout << "\n" << std::string(50, '=') << "\n"
@@ -332,15 +336,18 @@ int main() {
     auto out = generate_text_simple(
         model,
         encoded_tensor,
-        /*max_new_tokens=*/10,
+        /*max_new_tokens=*/6,
         /*context_size=*/cfg_124m.context_length
     );
+
+    std::string decoded_text = tokenizer.decode(out);
 
     std::cout << "\n\n" << std::string(50, '=') << "\n"
               << std::string(22, ' ') << "OUT\n"
               << std::string(50, '=') << "\n\n";
     std::cout << "Output: \n" << out << "\n";
     std::cout << "Output length: " << out.size(1) << "\n";
+    std::cout << "Output text: " << decoded_text << "\n";
 
     return 0;
 }

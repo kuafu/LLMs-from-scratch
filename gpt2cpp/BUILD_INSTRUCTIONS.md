@@ -78,11 +78,10 @@ encoded_tensor.shape: [1, 4]
 ==================================================
 
 Output: 
-Columns 1 to 11 15496     11    314    716  23307  45770  45653   1949  38428  46646  12919
-
-Columns 12 to 14 33634  40392  40187
-[ CPULongType{1,14} ]
-Output length: 14
+ 15496     11    314    716  23307  45770  45653   1949  38428  46646
+[ CPULongType{1,10} ]
+Output length: 10
+Output text: Hello, I amToo nexus obe try Pepsi KM
 ```
 
 ---
