@@ -354,3 +354,4 @@ cython_debug/
 .pixi
 *.egg-info
 
+gpt2cpp/build
