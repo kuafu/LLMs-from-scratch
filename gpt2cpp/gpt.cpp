@@ -1,4 +1,5 @@
 #include <torch/torch.h>
+#include <ATen/ops/linear.h>
 #include "TiktokenDecoder.h"
 #include <iostream>
 #include <vector>
@@ -66,6 +67,16 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 // Chapter 3: Multi-Head Attention
 ////////////////////////////////////////////////////////////////////////////////
+// Python 的 F.linear 直接调用 aten::linear；保持相同的矩阵乘法与偏置计算路径。
+torch::Tensor linear_like_python(const torch::Tensor& input, const torch::nn::LinearImpl& layer)
+{
+	if (layer.bias.defined())
+	{
+		return at::linear(input, layer.weight, layer.bias);
+	}
+	return at::linear(input, layer.weight);
+}
+
 class MultiHeadAttentionImpl : public torch::nn::Module
 {
 private:
@@ -103,9 +114,9 @@ public:
 		auto num_tokens = x.size(1);
 		auto d_in = x.size(2);
 
-		auto keys = W_key(x);
-		auto queries = W_query(x);
-		auto values = W_value(x);
+		auto keys = linear_like_python(x, *W_key);
+		auto queries = linear_like_python(x, *W_query);
+		auto values = linear_like_python(x, *W_value);
 
 		// 拆分多头并转置: (b, num_tokens, d_out) -> (b, num_heads, num_tokens, head_dim)
 		keys = keys.view({ b, num_tokens, num_heads, head_dim }).transpose(1, 2);
@@ -129,7 +140,7 @@ public:
 		// 加权求和上下文向量
 		auto context_vec = torch::matmul(attn_weights, values).transpose(1, 2);
 		context_vec = context_vec.contiguous().view({ b, num_tokens, d_out });
-		context_vec = out_proj(context_vec);
+		context_vec = linear_like_python(context_vec, *out_proj);
 
 		return context_vec;
 	}
@@ -171,7 +182,8 @@ public:
 
 	torch::Tensor forward(torch::Tensor x)
 	{
-		const double sqrt_2_over_pi = std::sqrt(2.0 / 3.14159265358979323846);
+		// 与 Python 一样先创建默认浮点类型的标量张量，再计算平方根。
+		auto sqrt_2_over_pi = torch::sqrt(torch::tensor(2.0 / 3.14159265358979323846));
 		return 0.5 * x * (1.0 + torch::tanh(
 			sqrt_2_over_pi * (x + 0.044715 * torch::pow(x, 3))
 		));
@@ -196,7 +208,9 @@ public:
 
 	torch::Tensor forward(torch::Tensor x)
 	{
-		return layers->forward(x);
+		x = linear_like_python(x, layers->at<torch::nn::LinearImpl>(0));
+		x = layers->at<GELUImpl>(1).forward(x);
+		return linear_like_python(x, layers->at<torch::nn::LinearImpl>(2));
 	}
 };
 TORCH_MODULE(FeedForward);
@@ -288,7 +302,7 @@ public:
 		x = drop_emb(x);
 		x = trf_blocks->forward(x);
 		x = final_norm(x);
-		auto logits = out_head(x);
+		auto logits = linear_like_python(x, *out_head);
 		return logits;
 	}
 };
