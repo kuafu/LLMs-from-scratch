@@ -1,0 +1,305 @@
+<div id="gpt2-source-flow">
+  <h2>GPT-2 Small · 源码架构与数据流</h2>
+  <div class="text-small text-muted">gpt2small.py · GPT_CONFIG_124M · B：批大小 · T：序列长度 ≤ 1024</div>
+  <div class="viz-controls">
+    <label class="form-label">查看结构
+      <select class="form-select" id="gpt2-view">
+        <option value="model">GPTModel · 12 层总图</option>
+        <option value="block">TransformerBlock · 单层展开</option>
+        <option value="attention">MultiHeadAttention · 12 个头</option>
+        <option value="generation">generate_text_simple · 生成循环</option>
+      </select>
+    </label>
+    <button class="btn" id="gpt2-play" type="button">暂停数据流</button>
+  </div>
+  <div class="text-small" id="gpt2-status" role="status" aria-live="polite">流动点表示数据方向，不代表真实张量值或计算耗时。</div>
+  <div id="gpt2-canvas"></div>
+  <div class="gpt2-legend text-small">
+    <span><b class="gpt2-key main"></b>前向数据</span>
+    <span><b class="gpt2-key residual"></b>shortcut 残差</span>
+    <span><b class="gpt2-key repeat"></b>下一次生成</span>
+  </div>
+</div>
+<style>
+  #gpt2-source-flow { color:var(--foreground); }
+  #gpt2-canvas { width:100%; margin-block:10px; }
+  #gpt2-canvas .gpt2-diagram { display:block; width:100%; overflow:visible; }
+  #gpt2-source-flow .gpt2-diagram text { font-family:inherit; fill:var(--foreground); }
+  #gpt2-source-flow .gpt2-diagram .sub { fill:var(--muted-foreground); }
+  #gpt2-source-flow .gpt2-diagram .node-body { fill:var(--background); stroke:var(--border); stroke-width:1; }
+  #gpt2-source-flow .gpt2-diagram .node-band { fill:var(--viz-series-1); opacity:.07; }
+  #gpt2-source-flow .gpt2-diagram .node.active .node-body { stroke:var(--viz-series-1); stroke-width:2; }
+  #gpt2-source-flow .gpt2-diagram .node.active .node-band { opacity:.16; }
+  #gpt2-source-flow .gpt2-diagram .group { fill:none; stroke:var(--border); stroke-width:1; stroke-dasharray:4 5; }
+  #gpt2-source-flow .gpt2-diagram .flow { fill:none; stroke:var(--viz-series-1); stroke-width:1.5; }
+  #gpt2-source-flow .gpt2-diagram .residual-flow { stroke:var(--viz-series-2); stroke-dasharray:5 4; }
+  #gpt2-source-flow .gpt2-diagram .repeat-flow { stroke:var(--viz-series-3); stroke-dasharray:4 4; }
+  #gpt2-source-flow .gpt2-legend { display:flex; flex-wrap:wrap; gap:8px 22px; }
+  #gpt2-source-flow .gpt2-legend span { display:inline-flex; align-items:center; gap:7px; }
+  #gpt2-source-flow .gpt2-key { display:inline-block; width:20px; height:0; border-top:2px solid var(--viz-series-1); }
+  #gpt2-source-flow .gpt2-key.residual { border-color:var(--viz-series-2); border-top-style:dashed; }
+  #gpt2-source-flow .gpt2-key.repeat { border-color:var(--viz-series-3); border-top-style:dashed; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('gpt2-source-flow');
+  const canvas = root.querySelector('#gpt2-canvas');
+  const selector = root.querySelector('#gpt2-view');
+  const play = root.querySelector('#gpt2-play');
+  const status = root.querySelector('#gpt2-status');
+  const ns = 'http://www.w3.org/2000/svg';
+  const views = ['model', 'block', 'attention', 'generation'];
+  const titles = {
+    model:'GPTModel.forward(in_idx)', block:'TransformerBlock.forward(x)',
+    attention:'MultiHeadAttention.forward(x)', generation:'generate_text_simple(model, idx, …)'
+  };
+  const colors = {main:'var(--viz-series-1)', residual:'var(--viz-series-2)', repeat:'var(--viz-series-3)'};
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+  let view = 'model', running = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let frame = 0, elapsed = 0, lastTime = 0, current = null, width = 0;
+
+  // Coordinates are recomputed at the actual available width: text is never scaled down.
+  function diagram(mode, W) {
+    const prefix = 'gpt2-' + mode;
+    const C = W / 2;
+    const parts = [], edges = [], nodes = {};
+    let phase = 0, height = 100;
+    const font = parseFloat(getComputedStyle(root).getPropertyValue('--font-size-base')) || 14;
+    function text(x,y,value,sub=false,anchor='middle',extra='') {
+      parts.push(`<text x="${x}" y="${y}" text-anchor="${anchor}" class="${sub?'sub text-small':'label'}" ${extra}>${esc(value)}</text>`);
+    }
+    function label(x,y,value,sub=false,anchor='middle') { text(x,y,value,sub,anchor); }
+    function node(id,x,y,w,h,title,lines=[],extra={}) {
+      nodes[id] = {id,x,y,w,h,cx:x+w/2,cy:y+h/2};
+      parts.push(`<g class="node" data-node="${id}"><rect class="node-body" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/><rect class="node-band" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/>`);
+      const step = Math.max(18,font+4), total = (lines.length + 1) * step;
+      const first = y+(h-total)/2+step*.76;
+      text(x+w/2,first,title);
+      lines.forEach((line,i)=>text(x+w/2,first+step*(i+1),line,true));
+      if(extra.tooltip) parts.push(`<desc>${esc(extra.tooltip)}</desc>`);
+      parts.push('</g>');
+      return nodes[id];
+    }
+    function centered(id,y,title,lines=[],w=Math.min(W-80,400),h=62) { return node(id,C-w/2,y,w,h,title,lines); }
+    function circle(id,y,title='+') {
+      const r=17; nodes[id]={id,x:C-r,y:y-r,w:r*2,h:r*2,cx:C,cy:y};
+      parts.push(`<g class="node" data-node="${id}"><circle class="node-body" cx="${C}" cy="${y}" r="${r}"/>`);
+      text(C,y+5,title); parts.push('</g>'); return nodes[id];
+    }
+    function edge(d,to,kind='main',p=phase++) { edges.push({d,to,kind,phase:p}); }
+    function down(a,b,kind='main',p=phase++) { const A=nodes[a], B=nodes[b]; edge(`M ${A.cx} ${A.y+A.h} V ${B.y}`,b,kind,p); }
+    function group(x,y,w,h,title) {
+      parts.push(`<rect class="group" x="${x}" y="${y}" width="${w}" height="${h}" rx="12"/>`);
+      label(x+14,y+24,title,false,'start');
+    }
+    function railLabel(x,y,value,rotation) { text(x,y,value,true,'middle',`transform="rotate(${rotation} ${x} ${y})"`); }
+
+    label(C,26,titles[mode]);
+    if(mode==='model') {
+      label(C,51,'emb_dim = 768 · n_heads = 12 · n_layers = 12',true);
+      const gap=20, pad=16, cw=(W-pad*2-gap)/2;
+      node('input',pad,78,cw,60,'in_idx',['[B, T] · token IDs']);
+      node('positions',pad+cw+gap,78,cw,60,'torch.arange(T)',['[T] · 0 … T−1']);
+      node('tok',pad,176,cw,78,'tok_emb',['nn.Embedding(50257, 768)','[B, T, 768]']);
+      node('pos',pad+cw+gap,176,cw,78,'pos_emb',['nn.Embedding(1024, 768)','[T, 768]']);
+      // The embedding signatures are split on narrow screens, preserving the labels.
+      if(cw < 190) {
+        parts.length=0;
+        label(C,26,titles[mode]); label(C,51,'D = 768 · 12 层 · 12 头',true);
+        node('input',pad,78,cw,60,'in_idx',['[B, T]']);
+        node('positions',pad+cw+gap,78,cw,60,'torch.arange(T)',['[T]']);
+        node('tok',pad,176,cw,78,'tok_emb',['50257 × 768','[B, T, 768]']);
+        node('pos',pad+cw+gap,176,cw,78,'pos_emb',['1024 × 768','[T, 768]']);
+      }
+      down('input','tok','main',0); down('positions','pos','main',0);
+      circle('sum',302);
+      edge(`M ${nodes.tok.cx} 254 V 302 H ${C-17}`,'sum','main',1);
+      edge(`M ${nodes.pos.cx} 254 V 302 H ${C+17}`,'sum','main',1);
+      label(C,348,'tok_embeds + pos_embeds',true);
+      label(C,371,'位置嵌入沿 B 广播 → [B, T, 768]',true);
+      centered('drop',395,'drop_emb',['nn.Dropout(0.1) · [B, T, 768]']);
+      edge(`M ${C} 319 V 330 H 4 V 426 H ${nodes.drop.x}`,'drop','main',2);
+      const cols = W>=670?4:W>=540?3:W>=420?2:1;
+      const rows=12/cols, gx=28, gy=520, gapX=18, gapY=24;
+      const nw=(W-gx*2-gapX*(cols-1))/cols, nh=72;
+      group(8,480,W-16,rows*(nh+gapY)+48,'trf_blocks · nn.ModuleList');
+      for(let i=0;i<12;i++) {
+        const row=Math.floor(i/cols), col=row%2===0?i%cols:cols-1-i%cols;
+        const x=gx+col*(nw+gapX), y=gy+row*(nh+gapY);
+        node('layer'+i,x,y,nw,nh,`${i+1} · trf_blocks[${i}]`,['TransformerBlock','[B, T, 768]']);
+        if(i===0) edge(`M ${C} 457 V 470 H 4 V ${y+nh/2} H ${x}`,'layer0','main',3);
+        else {
+          const A=nodes['layer'+(i-1)], B=nodes['layer'+i];
+          if(i%cols===0) edge(`M ${A.cx} ${A.y+A.h} V ${B.y}`,'layer'+i,'main',3+i);
+          else if(row%2===0) edge(`M ${A.x+A.w} ${A.cy} H ${B.x}`,'layer'+i,'main',3+i);
+          else edge(`M ${A.x} ${A.cy} H ${B.x+B.w}`,'layer'+i,'main',3+i);
+        }
+      }
+      const end=nodes.layer11, base=gy+rows*(nh+gapY)+42;
+      label(C,base-28,'编号 1–12 对应代码索引 0–11；每层参数独立',true);
+      centered('final',base+8,'final_norm · LayerNorm',['[B, T, 768]']);
+      edge(`M ${end.cx} ${end.y+end.h} V ${end.y+end.h+14} H ${W-4} V ${nodes.final.cy} H ${nodes.final.x+nodes.final.w}`,'final','main',15);
+      centered('head',base+106,'out_head',['nn.Linear(768, 50257, bias=False)']); down('final','head','main',16);
+      centered('logits',base+204,'logits',['[B, T, 50257] · 每个位置的词表分数']); down('head','logits','main',17);
+      label(C,base+300,'forward 返回 logits；生成函数另取最后一个位置',true);
+      label(C,base+325,'main() 调用 model.eval()，所有 Dropout 停用',true);
+      label(C,base+349,'嵌入与输出头权重独立 · 实际约 163M 参数',true);
+      height=base+375;
+    }
+    if(mode==='block') {
+      label(C,51,'所有 12 层结构相同，参数各自独立',true);
+      centered('x',78,'x',['[B, T, 768]']);
+      centered('norm1',180,'norm1 · LayerNorm',['沿最后一维 768 归一化']); down('x','norm1','main',0);
+      centered('att',282,'att · MultiHeadAttention',['12 heads × 64 · [B, T, 768]']); down('norm1','att','main',1);
+      centered('drop1',384,'drop_shortcut',['nn.Dropout(0.1)']); down('att','drop1','main',2);
+      circle('add1',496); down('drop1','add1','main',3);
+      edge(`M ${C} 155 H 28 V 496 H ${C-17}`,'add1','residual',3);
+      railLabel(16,315,'shortcut = x · [B, T, 768]',-90);
+      centered('norm2',548,'norm2 · LayerNorm',['[B, T, 768]']); down('add1','norm2','main',4);
+      const fw=Math.min(W-92,420);
+      group(C-fw/2-10,652,fw+20,294,'ff · FeedForward');
+      node('ff0',C-fw/2,696,fw,62,'layers[0] · nn.Linear',['768 → 3072 · [B, T, 3072]']);
+      edge(`M ${C} 610 V 634 H 28 V 727 H ${nodes.ff0.x}`,'ff0','main',5);
+      node('gelu',C-fw/2,784,fw,62,'layers[1] · GELU',['tanh 近似 · [B, T, 3072]']); down('ff0','gelu','main',6);
+      node('ff2',C-fw/2,872,fw,62,'layers[2] · nn.Linear',['3072 → 768 · [B, T, 768]']); down('gelu','ff2','main',7);
+      centered('drop2',986,'drop_shortcut',['复用同一个 Dropout 模块']); down('ff2','drop2','main',8);
+      circle('add2',1098); down('drop2','add2','main',9);
+      edge(`M ${C} 528 H ${W-28} V 1098 H ${C+17}`,'add2','residual',9);
+      railLabel(W-15,810,'shortcut = x · 第一次相加后的值',90);
+      centered('out',1150,'return x',['[B, T, 768]']); down('add2','out','main',10);
+      label(C,1250,'Pre-Norm：norm → att / ff → 加 shortcut',true);
+      label(C,1274,'LayerNorm：eps=1e−5 · var(unbiased=False)',true);
+      label(C,1298,'scale、shift 可学习；形状均为 [768]',true);
+      height=1324;
+    }
+    if(mode==='attention') {
+      label(C,51,'d_out = 768 · num_heads = 12 · head_dim = 64',true);
+      centered('ax',78,'x',['[B, T, 768]']);
+      const qw=(W-56)/3;
+      const qspec=[['q','W_query'],['k','W_key'],['v','W_value']];
+      qspec.forEach(([id,title],i)=>{
+        const N=node(id,16+i*(qw+12),184,qw,78,title,['768 → 768','[B,T,768]']);
+        edge(`M ${C} 140 V 162 H ${N.cx} V 184`,id,'main',0);
+      });
+      centered('split',310,'Q / K / V 各自变形',['view: [B, T, 12, 64]','transpose(1, 2): [B, 12, T, 64]'],Math.min(W-80,420),84);
+      qspec.forEach(([id])=>edge(`M ${nodes[id].cx} 262 V 286 H ${C} V 310`,'split','main',1));
+      centered('scores',448,'attn_scores = Q @ Kᵀ',['keys.transpose(2, 3)','[B, 12, T, T]'],Math.min(W-104,400),80);
+      down('split','scores','main',2);
+      centered('mask',578,'mask_bool · masked_fill_',['上三角（未来位置）填 −∞','[B, 12, T, T]'],Math.min(W-104,400),80);
+      down('scores','mask','main',3);
+      centered('weights',708,'attn_weights · softmax',['scores / √64 = scores / 8','dim = −1 · [B, 12, T, T]'],Math.min(W-104,400),80);
+      down('mask','weights','main',4);
+      centered('adrop',838,'dropout',['nn.Dropout(0.1)','[B, 12, T, T]'],Math.min(W-104,400),80);
+      down('weights','adrop','main',5);
+      centered('context',968,'attn_weights @ values',['[B, 12, T, 64]'],Math.min(W-104,400));
+      down('adrop','context','main',6);
+      edge(`M ${C+Math.min(W-80,420)/2} 352 H ${W-26} V 999 H ${C+Math.min(W-104,400)/2}`,'context','main',6);
+      railLabel(W-16,670,'values · V · [B, 12, T, 64]',90);
+      centered('transpose',1080,'transpose(1, 2)',['[B, T, 12, 64]']); down('context','transpose','main',7);
+      centered('merge',1182,'contiguous().view(…)',['12 个头合并 → [B, T, 768]']); down('transpose','merge','main',8);
+      centered('proj',1284,'out_proj · nn.Linear',['768 → 768 · bias=True']); down('merge','proj','main',9);
+      centered('aout',1386,'return context_vec',['[B, T, 768]']); down('proj','aout','main',10);
+      label(C,1484,'Q / K / V 三组投影：qkv_bias=False',true);
+      label(C,1508,'mask 是 buffer；每次截取 [:T, :T]',true);
+      label(C,1532,'每个 token 只关注自己与之前的 token',true);
+      height=1558;
+    }
+    if(mode==='generation') {
+      label(C,51,'main()：随机初始化 · model.eval() · 生成 6 次',true);
+      centered('text',78,'start_context',['"Hello, I am"']);
+      centered('encode',180,'tokenizer.encode',['[15496, 11, 314, 716]']); down('text','encode','main',0);
+      centered('idx',282,'encoded_tensor / idx',['torch.tensor(…).unsqueeze(0)','初始 [1, 4]'],Math.min(W-80,400),80); down('encode','idx','main',1);
+      centered('crop',420,'idx_cond',['idx[:, -context_size:]','[B, T] · T = min(L, 1024)'],Math.min(W-100,420),80); down('idx','crop','main',2);
+      centered('gmodel',552,'logits = model(idx_cond)',['torch.no_grad()','[B, T, 50257]'],Math.min(W-100,420),80); down('crop','gmodel','main',3);
+      centered('last',684,'logits = logits[:, -1, :]',['只取最后一个时间步 · [B, 50257]'],Math.min(W-100,420)); down('gmodel','last','main',4);
+      centered('argmax',798,'idx_next = torch.argmax(…)',['dim=−1, keepdim=True','[B, 1] · 贪心选取'],Math.min(W-100,420),80); down('last','argmax','main',5);
+      centered('cat',930,'idx = torch.cat(…)',['(idx, idx_next), dim=1','[B, L] → [B, L+1]'],Math.min(W-100,420),80); down('argmax','cat','main',6);
+      edge(`M ${C-Math.min(W-100,420)/2} 961 H 22 V 460 H ${C-Math.min(W-100,420)/2}`,'crop','repeat',7);
+      railLabel(16,700,'下一轮：裁剪上下文后重新计算',-90);
+      centered('decode',1080,'tokenizer.decode(…)',['out.squeeze(0).tolist()','6 次后：out 为 [1, 10]'],Math.min(W-80,400),80); down('cat','decode','main',8);
+      label(C,1182,'L 是累计长度；T 是本轮输入长度',true);
+      label(C,1206,'main() 未加载预训练权重；图中不假定生成内容',true);
+      label(C,1230,'此实现无 KV cache，每轮重新执行完整模型',true);
+      height=1256;
+    }
+    const marker = Object.entries(colors).map(([kind,color])=>`<marker id="${prefix}-${kind}" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 7 3.5 L 0 7 Z" fill="${color}"/></marker>`).join('');
+    const edgeMarkup=edges.map((e,i)=>`<path id="${prefix}-edge-${i}" class="flow ${e.kind==='main'?'':e.kind+'-flow'}" d="${e.d}" marker-end="url(#${prefix}-${e.kind})" data-phase="${e.phase}" data-target="${e.to}"/>`).join('');
+    const dotMarkup=edges.map((e,i)=>`<circle class="packet" data-edge="${i}" r="3.5" fill="${colors[e.kind]}" visibility="hidden"/>`).join('');
+    const svg=`<svg xmlns="${ns}" class="gpt2-diagram" viewBox="0 0 ${W} ${height}" width="${W}" height="${height}" role="img" aria-label="${esc(titles[mode])}"><title>${esc(titles[mode])}</title><desc>按 gpt2small.py 的调用顺序绘制；B 为批大小，T 为序列长度。箭头表示数据方向。</desc><defs>${marker}</defs>${edgeMarkup}${parts.join('')}${dotMarkup}</svg>`;
+    return {svg,edges,nodes,phases:Math.max(...edges.map(e=>e.phase))+1,height};
+  }
+
+  function hydrate() {
+    if(!current) return;
+    current.paths=[...canvas.querySelectorAll('path[data-phase]')];
+    current.dots=[...canvas.querySelectorAll('.packet')];
+    current.lengths=current.paths.map(p=>p.getTotalLength());
+  }
+  function draw() {
+    width=Math.max(280,Math.round(canvas.getBoundingClientRect().width));
+    current=diagram(view,width); canvas.innerHTML=current.svg; hydrate();
+    update(elapsed);
+  }
+  function update(ms) {
+    if(!current) return;
+    const t=ms/720, active=Math.floor(t);
+    canvas.querySelectorAll('.node.active').forEach(n=>n.classList.remove('active'));
+    current.edges.forEach((edge,i)=>{
+      const fraction=t-edge.phase;
+      const shown=fraction>=0 && fraction<1;
+      current.dots[i].setAttribute('visibility',shown?'visible':'hidden');
+      if(shown) {
+        const point=current.paths[i].getPointAtLength(Math.max(0,Math.min(.995,fraction))*current.lengths[i]);
+        current.dots[i].setAttribute('cx',point.x); current.dots[i].setAttribute('cy',point.y);
+        const target=canvas.querySelector(`[data-node="${edge.to}"]`);
+        if(target) target.classList.add('active');
+      }
+    });
+    if(active>=current.phases) {
+      running=false; play.textContent='重播数据流';
+      status.textContent='本次路径演示完成。箭头保留数据方向；可重播或切换结构。';
+    }
+  }
+  function tick(now) {
+    if(!running) return;
+    if(lastTime) elapsed+=Math.min(now-lastTime,80);
+    lastTime=now; update(elapsed);
+    if(running) frame=requestAnimationFrame(tick);
+  }
+  function start(restart=false) {
+    cancelAnimationFrame(frame);
+    if(restart || elapsed>=current.phases*720) elapsed=0;
+    running=true; lastTime=0; play.textContent='暂停数据流';
+    status.textContent='流动点表示数据方向，不代表真实张量值或计算耗时。';
+    frame=requestAnimationFrame(tick);
+  }
+  function save() {
+    if(window.openai?.setWidgetState) window.openai.setWidgetState({modelContent:{view,source:'gpt2/gpt2small.py'},privateContent:{view}}).catch(()=>{});
+  }
+  function selectView(next,animate=true) {
+    if(!views.includes(next)) return;
+    cancelAnimationFrame(frame); view=next; selector.value=next; elapsed=0; lastTime=0; draw();
+    if(animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) start(true);
+    else { running=false; play.textContent='播放数据流'; }
+  }
+  selector.addEventListener('change',()=>{selectView(selector.value);save();});
+  play.addEventListener('click',()=>{
+    if(running) {running=false;cancelAnimationFrame(frame);play.textContent='继续数据流';status.textContent='数据流已暂停。';}
+    else start();
+  });
+  new ResizeObserver(()=>{if(Math.round(canvas.getBoundingClientRect().width)!==width) draw();}).observe(canvas);
+  document.addEventListener('visibilitychange',()=>{lastTime=0;});
+  const saved=window.openai?.widgetState;
+  const savedView=saved?.privateContent?.view || saved?.modelContent?.view;
+  if(views.includes(savedView)) {view=savedView;selector.value=view;}
+  window.addEventListener('openai:set_globals',e=>{
+    const state=e.detail?.globals?.widgetState;
+    const next=state?.privateContent?.view || state?.modelContent?.view;
+    if(views.includes(next)&&next!==view) selectView(next,false);
+  });
+  root.renderDiagram = (mode,w) => diagram(mode,w).svg;
+  root.inspectDiagram = () => ({view,running,elapsed,width,phases:current.phases,nodes:Object.keys(current.nodes),edges:current.edges});
+  draw();
+  if(running) start(); else {play.textContent='播放数据流'; status.textContent='已按减少动态效果设置暂停；可手动播放。';}
+})();
+</script>
