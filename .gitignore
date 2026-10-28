@@ -359,3 +359,4 @@ cython_debug/
 /gpt2cpp/build-*/
 /gpt2cpp/.vs/
 /gpt2cpp/debug/validation/
+gpt2/.vs
