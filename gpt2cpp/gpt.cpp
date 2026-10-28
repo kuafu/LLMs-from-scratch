@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <iomanip>
+#include <exception>
 
 ////////////////////////////////////////////////////////////////////////////////
 // Configuration
@@ -340,7 +341,7 @@ torch::Tensor generate_text_simple(GPTModel& model, torch::Tensor idx, int64_t m
 ////////////////////////////////////////////////////////////////////////////////
 // Main Function
 ////////////////////////////////////////////////////////////////////////////////
-int main()
+int run_gpt()
 {
 	GPTConfig cfg_124m;
 	cfg_124m.vocab_size = 50257;
@@ -358,10 +359,16 @@ int main()
 	std::string start_context = "Hello, I am";
 
 	TiktokenDecoder tokenizer("gpt2");
+	if (!tokenizer.is_valid())
+	{
+		std::cerr << "Failed to initialize the tokenizer in the configured Python environment.\n";
+		return 1;
+	}
 	std::vector<int64_t> encoded = tokenizer.encode(start_context);
 	if (encoded.empty())
 	{
-		encoded = { 15496, 11, 314, 716 };
+		std::cerr << "Failed to encode the input text.\n";
+		return 1;
 	}
 	auto encoded_tensor = torch::tensor(encoded, torch::kInt64).unsqueeze(0);
 
@@ -385,6 +392,11 @@ int main()
 	);
 
 	std::string decoded_text = tokenizer.decode(out);
+	if (decoded_text.empty())
+	{
+		std::cerr << "Failed to decode the generated tokens.\n";
+		return 1;
+	}
 
 	std::cout << "\n\n" << std::string(50, '=') << "\n"
 		<< std::string(22, ' ') << "OUT\n"
@@ -394,4 +406,25 @@ int main()
 	std::cout << "Output text: " << decoded_text << "\n";
 
 	return 0;
+}
+
+int main()
+{
+	int result = 1;
+	try
+	{
+		result = run_gpt();
+	}
+	catch (const std::exception& error)
+	{
+		std::cerr << "GPT execution failed: " << error.what() << "\n";
+	}
+	catch (...)
+	{
+		std::cerr << "GPT execution failed with an unknown error.\n";
+	}
+
+	// run_gpt has returned, so its decoder references are gone before shutdown.
+	if (!TiktokenDecoder::shutdown_python()) return 1;
+	return result;
 }

@@ -75,7 +75,11 @@ python -c "import sys, torch; print('Python:', sys.executable); print('PyTorch:'
 
 第 2 节方法 C 使用 CMake 默认自动发现该路径。运行时需要找到同一套 PyTorch 版本的 DLL；本项目的 CMake 配置会把选中包的 `lib` 目录复制到程序输出目录。构建和运行时应避免混用不同版本的 LibTorch 头文件、链接库和 DLL。
 
-本项目的 [`TiktokenDecoder.cpp`](TiktokenDecoder.cpp) 还会嵌入 Python 并导入 `tiktoken`，因此构建时需要 Python 开发文件，运行时也需要相应的 Python 环境和 `tiktoken`。CMake 发现的解释器用于配置和链接；嵌入式 Python 的运行时模块搜索路径可能不同，使用虚拟环境时需另行验证 `tiktoken` 可被实际运行的程序导入。
+本项目的 [`TiktokenDecoder.cpp`](TiktokenDecoder.cpp) 会嵌入 Python 并导入 `tiktoken`。CMake 将选中解释器的路径和 `sys.prefix` 写入构建目录中生成的头文件；程序使用该解释器初始化 Python，并检查运行时的 `sys.executable` 和 `sys.prefix`。运行日志中的 `Tokenizer Python`、`Tokenizer environment` 和 `Tokenizer module` 分别显示解释器、环境及实际导入的模块路径。模块仍按 Python 的正常搜索规则查找，因此 `PYTHONPATH`、user-site 和虚拟环境的系统包设置也会影响模块来源。
+
+请在 CMake 选中的环境中安装 `tiktoken`，并保留该 Python 环境供程序运行。切换或移动环境时，使用新的构建目录重新配置和构建。若导入、编码或解码失败，程序会输出错误并返回非零退出码，不再使用硬编码 token 回退。此示例由程序独占管理嵌入式 Python；如果其他宿主已经初始化 Python，分词器会拒绝接管。
+
+**虚拟环境验证（2026-10-28）：** Windows x64、Visual Studio 2022、Release；通过 `Python3_EXECUTABLE` 指定测试虚拟环境，将真实 `tiktoken` 安装内容放在该环境的 `site-packages` 中，并在运行时设置 `PYTHONNOUSERSITE=1`。程序日志确认从该虚拟环境导入模块，输入 `Hello, I am` 的编码和解码成功，生成 token 与下方记录一致。将该环境置于 `PATH` 首位后，默认配置也完成了构建和运行；运行时从 `PATH` 移除该虚拟环境后，仍从配置时选中的环境导入模块。另用没有 `tiktoken` 的虚拟环境验证，程序输出导入错误并以退出码 1 结束。
 
 **本机验证记录（2026-10-28）：** Windows x64、Visual Studio 2022、Release 配置，通过本项目的 `CMakeLists.txt` 在独立临时构建目录中使用 Python PyTorch `2.14.1+cpu` 包中的库，完成配置、编译、链接和运行。`Torch_DIR` 指向该 Python 包的 CMake 目录；输出目录中的 `torch_cpu.dll` 与包内文件的 SHA-256 一致。输入 `Hello, I am` 时，C++ 和 Python 的 token 输出均为：
 
@@ -148,6 +152,18 @@ cmake --build build-python-torch --config Release
 ```
 
 CMake 默认查找 `PATH` 中的 `python`，然后通过该解释器的 `torch.utils.cmake_prefix_path` 找到 PyTorch。如需指定其他解释器，可在**新构建目录**的配置命令中加入 `-DPython3_EXECUTABLE="C:/path/to/python.exe"`。如果该环境没有安装 `torch`，配置会报错并提示可选处理方式，不会自动回退到旧版独立 LibTorch。
+
+例如，显式选择 Windows 虚拟环境时，可以先检查模块来源，再配置并运行：
+
+```powershell
+$gptPython = "C:/path/to/.venv/Scripts/python.exe"
+& $gptPython -c "import sys, torch, tiktoken; print(sys.executable); print(sys.prefix); print(tiktoken.__file__)"
+cmake -S . -B build-venv -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=OFF "-DPython3_EXECUTABLE=$gptPython"
+cmake --build build-venv --config Release
+.\build-venv\Release\gpt.exe
+```
+
+如果缺少 `tiktoken`，可通过 `& $gptPython -m pip install tiktoken` 安装到选中的环境。
 
 选择新的构建目录可避免旧的 `Torch_DIR`、Caffe2 和链接库缓存。配置成功后，可用以下命令检查实际使用的是哪个 Torch 配置：
 

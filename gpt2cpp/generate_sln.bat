@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal DisableDelayedExpansion
 
 cd /d "%~dp0"
 
@@ -7,41 +7,44 @@ echo =======================================================
 echo     Generating Visual Studio Solution (.sln)
 echo =======================================================
 
-rem Set LibTorch path from argument 1, or auto-detect H: and F: drives
+rem An optional first argument selects a standalone LibTorch installation.
 set "LIBTORCH_PATH=%~1"
+set "BUILD_DIR=%~2"
 
-if "%LIBTORCH_PATH%"=="" (
-    if exist "H:\LLM\libtorch" (
-        set "LIBTORCH_PATH=H:\LLM\libtorch"
-    ) else if exist "F:\LLM\libtorch" (
-        set "LIBTORCH_PATH=F:\LLM\libtorch"
+if not defined BUILD_DIR (
+    if defined LIBTORCH_PATH (
+        set "BUILD_DIR=build-libtorch"
     ) else (
-        echo [ERROR] LibTorch not found at H:\LLM\libtorch or F:\LLM\libtorch.
-        echo Please pass the LibTorch directory as an argument:
-        echo   %~nx0 D:\path\to\libtorch
-        pause
-        exit /b 1
+        set "BUILD_DIR=build-python-torch"
     )
 )
 
-echo [INFO] Using LibTorch from: %LIBTORCH_PATH%
+echo [INFO] Build directory: %BUILD_DIR%
 echo [INFO] CMake Generator: Visual Studio 17 2022 (x64)
 echo [INFO] CUDA: Disabled (CPU mode)
 echo.
 
-cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="%LIBTORCH_PATH%" -DUSE_CUDA=OFF
-
-if %ERRORLEVEL% equ 0 (
-    echo.
-    echo =======================================================
-    echo [SUCCESS] Visual Studio solution generated successfully!
-    echo Solution file located at:
-    echo   %~dp0build\gpt_cpp.sln
-    echo =======================================================
+if defined LIBTORCH_PATH (
+    echo [INFO] Using the specified LibTorch directory: %LIBTORCH_PATH%
+    cmake -B "%BUILD_DIR%" -S . -G "Visual Studio 17 2022" -A x64 "-DCMAKE_PREFIX_PATH=%LIBTORCH_PATH%" -DUSE_CUDA=OFF
 ) else (
-    echo.
-    echo [FAILED] CMake configuration failed. Please check your environment.
+    echo [INFO] Using Python PyTorch unless a Torch path is set in the environment or cache.
+    cmake -B "%BUILD_DIR%" -S . -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=OFF
 )
 
+if errorlevel 1 goto failed
+
 echo.
+echo =======================================================
+echo [SUCCESS] Visual Studio solution generated successfully!
+echo Solution file located at:
+echo   %BUILD_DIR%\gpt_cpp.sln
+echo =======================================================
 pause
+exit /b 0
+
+:failed
+echo.
+echo [FAILED] CMake configuration failed. Please check your environment.
+pause
+exit /b 1

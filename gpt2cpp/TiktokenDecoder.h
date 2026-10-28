@@ -12,13 +12,13 @@
 class TiktokenDecoder {
 public:
     /**
-     * @brief 构造函数，初始化 Python 解释器并加载指定 encoding
+     * @brief 使用 CMake 选中的 Python 环境初始化解释器并加载指定 encoding
      * @param encoding_name 编码器名称，默认 "gpt2"
      */
     explicit TiktokenDecoder(const std::string& encoding_name = "gpt2");
 
     /**
-     * @brief 析构函数，释放 Python 对象引用并管理运行时生命周期
+     * @brief 析构函数，释放本实例持有的 Python 对象引用
      */
     ~TiktokenDecoder();
 
@@ -32,6 +32,12 @@ public:
      * @brief 检查 Python 及 tiktoken 编码器是否初始化成功
      */
     bool is_valid() const;
+
+    /**
+     * @brief 在所有 decoder 销毁且相关线程结束后，从初始化线程关闭自有 Python 运行时。
+     * 已由其他宿主初始化的 Python 不受支持，也不会由本类关闭。
+     */
+    static bool shutdown_python();
 
     /**
      * @brief 将文本编码为 token ID 向量
