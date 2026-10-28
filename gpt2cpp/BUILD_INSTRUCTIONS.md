@@ -219,3 +219,11 @@ Output text: Hello, I amToo nexus obe try Pepsi KM
 - **原因**：PyTorch C++ 模板展开非常庞大，超过了 COFF 默认的 65,536 个节限制。
 - **解决办法**：
   本项目 `CMakeLists.txt` 中已默认配置 `target_compile_options(gpt PRIVATE /bigobj)`，如使用其他自定义构建脚本请确保开启 `/bigobj`。
+
+---
+
+## 5. Visual Studio 中查看 LibTorch 张量与模块
+
+项目提供 [`debug/libtorch.natvis`](debug/libtorch.natvis)，CMake 已将它加入 MSVC 的 `gpt` 项目。对已有构建目录重新运行原来的配置命令，在 VS 中重新加载项目并开始调试后，即可查看张量摘要、CPU 数值预览和模块参数。
+
+完整使用方法、内部解析原理、支持范围、排查步骤和验证记录见独立技术文档：**[Visual Studio 中的 LibTorch 对象可视化](LIBTORCH_NATVIS.md)**。

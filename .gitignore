@@ -354,4 +354,8 @@ cython_debug/
 .pixi
 *.egg-info
 
-gpt2cpp/build
+# GPT-2 C++ generated projects and local debugger validation artifacts
+/gpt2cpp/build/
+/gpt2cpp/build-*/
+/gpt2cpp/.vs/
+/gpt2cpp/debug/validation/

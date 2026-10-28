@@ -223,6 +223,9 @@ target_link_libraries(gpt PRIVATE "${TORCH_LIBRARIES}" Python3::Python)
 set_property(TARGET gpt PROPERTY CXX_STANDARD 20)
 
 if (MSVC)
+    # Visual Studio loads this from the project and embeds it in generated PDBs.
+    target_sources(gpt PRIVATE debug/libtorch.natvis)
+    source_group("Debugger" FILES debug/libtorch.natvis)
     target_compile_options(gpt PRIVATE /utf-8 /bigobj /wd4267)
     
     # 自动将 libtorch 中的 DLL 拷贝到生成目录下，方便直接运行可执行文件

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <!--
+    MSVC / Visual Studio 2022. Native debugger expansions verified with
+    LibTorch 2.10.0 and PyTorch 2.14.1. No target-process functions are called.
+    CPU previews contain at most 64 elements, in logical row-major order.
+    Internal layouts are not a stable API: revalidate after upgrading LibTorch.
+  -->
+
+  <Type Name="at::TensorBase" Inheritable="true">
+    <AlternativeType Name="at::Tensor" />
+    <DisplayString Condition="impl_.target_ == 0 || !impl_.target_-&gt;device_opt_._Has_value">Tensor (undefined)</DisplayString>
+    <DisplayString>{*impl_.target_}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="impl_.target_ != 0 &amp;&amp; impl_.target_-&gt;device_opt_._Has_value">*impl_.target_</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="c10::TensorImpl" Inheritable="true">
+    <Intrinsic Name="plain_metadata" Expression="sizes_strides_policy_ == 0 &amp;&amp; !device_policy_ &amp;&amp; !layout_policy_" />
+    <Intrinsic Name="size_at" Expression="sizes_and_strides_.size_ &lt;= 5 ? sizes_and_strides_.inlineStorage_[dim] : sizes_and_strides_.outOfLineStorage_[dim]">
+      <Parameter Name="dim" Type="unsigned long long" />
+    </Intrinsic>
+    <Intrinsic Name="stride_at" Expression="sizes_and_strides_.size_ &lt;= 5 ? sizes_and_strides_.inlineStorage_[5 + dim] : sizes_and_strides_.outOfLineStorage_[sizes_and_strides_.size_ + dim]">
+      <Parameter Name="dim" Type="unsigned long long" />
+    </Intrinsic>
+    <Intrinsic Name="supported_dtype" Expression="data_type_.index_ &lt;= 4 || data_type_.index_ == 6 || data_type_.index_ == 7 || data_type_.index_ == 11" />
+    <!-- DispatchKeySet encodes functionality bits after the backend bits. -->
+    <Intrinsic Name="lazy_values" Expression="(key_set_.repr_ &amp; ((1ULL &lt;&lt; ((int)c10::BackendComponent::EndOfBackendKeys + (int)c10::DispatchKey::Conjugate - 1)) | (1ULL &lt;&lt; ((int)c10::BackendComponent::EndOfBackendKeys + (int)c10::DispatchKey::Negative - 1)))) != 0" />
+    <Intrinsic Name="cpu_values" Expression="device_opt_._Has_value &amp;&amp; (int)device_opt_._Value.type_ == 0 &amp;&amp; plain_metadata() &amp;&amp; !storage_access_should_throw_ &amp;&amp; !lazy_values() &amp;&amp; supported_dtype() &amp;&amp; sizes_and_strides_.size_ &lt;= 64 &amp;&amp; storage_.storage_impl_.target_ != 0 &amp;&amp; (int)storage_.storage_impl_.target_-&gt;data_ptr_.device_.type_ == 0" />
+    <DisplayString Condition="!device_opt_._Has_value">Tensor (undefined)</DisplayString>
+    <DisplayString Condition="!plain_metadata()">Tensor (custom/symbolic metadata), dtype={data_type_}</DisplayString>
+    <DisplayString>Tensor shape={sizes_and_strides_}, dtype={data_type_}, device={device_opt_._Value}, numel={numel_}</DisplayString>
+    <Expand>
+      <Item Name="shape" Condition="plain_metadata()">sizes_and_strides_</Item>
+      <Item Name="strides" Condition="plain_metadata()">sizes_and_strides_,view(strides)</Item>
+      <Item Name="dtype">data_type_</Item>
+      <Item Name="device" Condition="device_opt_._Has_value &amp;&amp; !device_policy_">device_opt_._Value</Item>
+      <Item Name="numel" Condition="plain_metadata()">numel_,d</Item>
+      <Item Name="storage_offset" Condition="plain_metadata()">storage_offset_,d</Item>
+      <Item Name="contiguous" Condition="plain_metadata()">is_contiguous_</Item>
+      <Item Name="autograd" Optional="true" Condition="autograd_meta_._Mypair._Myval2 != 0">autograd_meta_</Item>
+      <Synthetic Name="[values]" Condition="plain_metadata() &amp;&amp; numel_ == 0">
+        <DisplayString>[] (empty tensor)</DisplayString>
+      </Synthetic>
+      <Synthetic Name="[values]" Condition="numel_ &gt; 0 &amp;&amp; cpu_values() &amp;&amp; storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_ != 0">
+        <DisplayString>First {numel_ &lt; 64 ? numel_ : 64} of {numel_} elements (logical row-major order)</DisplayString>
+        <Expand>
+          <CustomListItems MaxItemsPerView="64">
+            <Variable Name="i" InitialValue="0LL" />
+            <Variable Name="limit" InitialValue="numel_ &lt; 64 ? numel_ : 64LL" />
+            <Variable Name="offset" InitialValue="0LL" />
+            <Variable Name="remaining" InitialValue="0LL" />
+            <Variable Name="dim" InitialValue="0ULL" />
+            <Size>limit</Size>
+            <Loop>
+              <Break Condition="i &gt;= limit" />
+              <Exec>offset = storage_offset_</Exec>
+              <Exec>remaining = i</Exec>
+              <Exec>dim = sizes_and_strides_.size_</Exec>
+              <Loop Condition="dim &gt; 0">
+                <Exec>dim = dim - 1</Exec>
+                <Exec>offset = offset + (remaining % size_at(dim)) * stride_at(dim)</Exec>
+                <Exec>remaining = remaining / size_at(dim)</Exec>
+              </Loop>
+              <If Condition="data_type_.index_ == 6">
+                <Item Name="[{i}]">((float*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset]</Item>
+              </If>
+              <Elseif Condition="data_type_.index_ == 7">
+                <Item Name="[{i}]">((double*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset]</Item>
+              </Elseif>
+              <Elseif Condition="data_type_.index_ == 4">
+                <Item Name="[{i}]">((long long*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset],d</Item>
+              </Elseif>
+              <Elseif Condition="data_type_.index_ == 3">
+                <Item Name="[{i}]">((int*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset],d</Item>
+              </Elseif>
+              <Elseif Condition="data_type_.index_ == 2">
+                <Item Name="[{i}]">((short*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset],d</Item>
+              </Elseif>
+              <Elseif Condition="data_type_.index_ == 1">
+                <Item Name="[{i}]">(int)((signed char*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset],d</Item>
+              </Elseif>
+              <Elseif Condition="data_type_.index_ == 0">
+                <Item Name="[{i}]">(unsigned int)((unsigned char*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset],d</Item>
+              </Elseif>
+              <Else>
+                <Item Name="[{i}]">((bool*)storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_)[offset]</Item>
+              </Else>
+              <Exec>i = i + 1</Exec>
+            </Loop>
+          </CustomListItems>
+        </Expand>
+      </Synthetic>
+      <Synthetic Name="[values unavailable]" Condition="!(plain_metadata() &amp;&amp; numel_ == 0) &amp;&amp; (!cpu_values() || storage_.storage_impl_.target_-&gt;data_ptr_.ptr_.data_ == 0)">
+        <DisplayString>Preview requires a materialized CPU strided tensor with a supported dtype and no lazy conjugate/negative view.</DisplayString>
+      </Synthetic>
+    </Expand>
+  </Type>
+
+  <Type Name="c10::impl::SizesAndStrides">
+    <Intrinsic Name="sizes_ptr" Expression="size_ &lt;= 5 ? &amp;inlineStorage_[0] : outOfLineStorage_" />
+    <Intrinsic Name="strides_ptr" Expression="size_ &lt;= 5 ? &amp;inlineStorage_[5] : &amp;outOfLineStorage_[size_]" />
+    <DisplayString Condition="size_ == 0">[]</DisplayString>
+    <DisplayString ExcludeView="strides" Condition="size_ == 1">[{sizes_ptr()[0]}]</DisplayString>
+    <DisplayString ExcludeView="strides" Condition="size_ == 2">[{sizes_ptr()[0]}, {sizes_ptr()[1]}]</DisplayString>
+    <DisplayString ExcludeView="strides" Condition="size_ == 3">[{sizes_ptr()[0]}, {sizes_ptr()[1]}, {sizes_ptr()[2]}]</DisplayString>
+    <DisplayString ExcludeView="strides" Condition="size_ == 4">[{sizes_ptr()[0]}, {sizes_ptr()[1]}, {sizes_ptr()[2]}, {sizes_ptr()[3]}]</DisplayString>
+    <DisplayString ExcludeView="strides" Condition="size_ == 5">[{sizes_ptr()[0]}, {sizes_ptr()[1]}, {sizes_ptr()[2]}, {sizes_ptr()[3]}, {sizes_ptr()[4]}]</DisplayString>
+    <DisplayString ExcludeView="strides">[{sizes_ptr()[0]}, {sizes_ptr()[1]}, {sizes_ptr()[2]}, {sizes_ptr()[3]}, {sizes_ptr()[4]}, ...] (rank={size_})</DisplayString>
+    <DisplayString IncludeView="strides" Condition="size_ == 1">[{strides_ptr()[0]}]</DisplayString>
+    <DisplayString IncludeView="strides" Condition="size_ == 2">[{strides_ptr()[0]}, {strides_ptr()[1]}]</DisplayString>
+    <DisplayString IncludeView="strides" Condition="size_ == 3">[{strides_ptr()[0]}, {strides_ptr()[1]}, {strides_ptr()[2]}]</DisplayString>
+    <DisplayString IncludeView="strides" Condition="size_ == 4">[{strides_ptr()[0]}, {strides_ptr()[1]}, {strides_ptr()[2]}, {strides_ptr()[3]}]</DisplayString>
+    <DisplayString IncludeView="strides" Condition="size_ == 5">[{strides_ptr()[0]}, {strides_ptr()[1]}, {strides_ptr()[2]}, {strides_ptr()[3]}, {strides_ptr()[4]}]</DisplayString>
+    <DisplayString IncludeView="strides">[{strides_ptr()[0]}, {strides_ptr()[1]}, {strides_ptr()[2]}, {strides_ptr()[3]}, {strides_ptr()[4]}, ...] (rank={size_})</DisplayString>
+    <Expand>
+      <ArrayItems ExcludeView="strides">
+        <Size>size_</Size>
+        <ValuePointer>sizes_ptr()</ValuePointer>
+      </ArrayItems>
+      <ArrayItems IncludeView="strides">
+        <Size>size_</Size>
+        <ValuePointer>strides_ptr()</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="caffe2::TypeMeta">
+    <DisplayString Condition="index_ == 0">uint8</DisplayString>
+    <DisplayString Condition="index_ == 1">int8</DisplayString>
+    <DisplayString Condition="index_ == 2">int16</DisplayString>
+    <DisplayString Condition="index_ == 3">int32</DisplayString>
+    <DisplayString Condition="index_ == 4">int64</DisplayString>
+    <DisplayString Condition="index_ == 5">float16</DisplayString>
+    <DisplayString Condition="index_ == 6">float32</DisplayString>
+    <DisplayString Condition="index_ == 7">float64</DisplayString>
+    <DisplayString Condition="index_ == 8">complex32</DisplayString>
+    <DisplayString Condition="index_ == 9">complex64</DisplayString>
+    <DisplayString Condition="index_ == 10">complex128</DisplayString>
+    <DisplayString Condition="index_ == 11">bool</DisplayString>
+    <DisplayString Condition="index_ == 12">qint8</DisplayString>
+    <DisplayString Condition="index_ == 13">quint8</DisplayString>
+    <DisplayString Condition="index_ == 14">qint32</DisplayString>
+    <DisplayString Condition="index_ == 15">bfloat16</DisplayString>
+    <DisplayString>TypeMeta id={index_}</DisplayString>
+  </Type>
+
+  <Type Name="c10::Device">
+    <DisplayString Condition="(int)type_ == 0">cpu</DisplayString>
+    <DisplayString Condition="(int)type_ == 1">cuda:{(int)index_}</DisplayString>
+    <DisplayString Condition="(int)type_ == 14">meta</DisplayString>
+    <DisplayString>{type_}:{(int)index_}</DisplayString>
+  </Type>
+
+  <Type Name="torch::nn::ModuleHolder&lt;*&gt;" Inheritable="true">
+    <DisplayString Condition="impl_._Ptr == 0">Module (empty)</DisplayString>
+    <DisplayString>{*impl_._Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="impl_._Ptr != 0">*impl_._Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="torch::nn::LinearImpl">
+    <DisplayString>Linear(in_features={options.in_features_}, out_features={options.out_features_}, bias={options.bias_})</DisplayString>
+    <Expand>
+      <Item Name="weight">weight</Item>
+      <Item Name="bias">bias</Item>
+      <Item Name="options">options</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="torch::nn::SequentialImpl">
+    <DisplayString>Sequential</DisplayString>
+    <Expand>
+      <Item Name="layers">modules_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="torch::nn::AnyModule">
+    <DisplayString Condition="content_._Mypair._Myval2 == 0">AnyModule (empty)</DisplayString>
+    <DisplayString>{*content_._Mypair._Myval2}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="content_._Mypair._Myval2 != 0">*content_._Mypair._Myval2</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="torch::nn::AnyModuleHolder&lt;*&gt;">
+    <DisplayString>{*module._Ptr}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="module._Ptr != 0">*module._Ptr</ExpandedItem>
+    </Expand>
+  </Type>
+</AutoVisualizer>
