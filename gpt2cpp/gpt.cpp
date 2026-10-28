@@ -9,7 +9,7 @@
 #include <limits>
 #include <iomanip>
 #include <exception>
-
+#include <sstream>
 ////////////////////////////////////////////////////////////////////////////////
 // Configuration
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,6 +280,17 @@ public:
 		pos_emb = register_module("pos_emb", torch::nn::Embedding(cfg.context_length, cfg.emb_dim));
 		drop_emb = register_module("drop_emb", torch::nn::Dropout(cfg.drop_rate));
 
+		//{
+		//	using namespace torch::indexing;
+		//	// 前 3 行、前 5 列
+		//	torch::Tensor part = tok_emb->weight.index({Slice(0, 3), Slice(0, 5) });
+
+		//	std::ostringstream oss;
+		//	oss << tok_emb->weight;
+
+		//	std::string text = oss.str();
+		//}
+
 		trf_blocks = register_module("trf_blocks", torch::nn::ModuleList());
 		for (int64_t i = 0; i < cfg.n_layers; ++i)
 		{
@@ -373,11 +384,10 @@ int run_gpt()
 		std::cerr << "Failed to encode the input text.\n";
 		return 1;
 	}
+
 	torch::Tensor encoded_tensor = torch::tensor(encoded, torch::kInt64).unsqueeze(0);
 
-	std::cout << "\n" << std::string(50, '=') << "\n"
-		<< std::string(22, ' ') << "IN\n"
-		<< std::string(50, '=') << "\n\n";
+	std::cout << "\n" << std::string(50, '=') << "\n" << std::string(22, ' ') << "IN\n" << std::string(50, '=') << "\n\n";
 	std::cout << "Input text: " << start_context << "\n";
 	std::cout << "Encoded input text: [";
 	for (size_t i = 0; i < encoded.size(); ++i)
@@ -387,12 +397,7 @@ int run_gpt()
 	std::cout << "]\n";
 	std::cout << "encoded_tensor.shape: [" << encoded_tensor.size(0) << ", " << encoded_tensor.size(1) << "]\n";
 
-	torch::Tensor out = generate_text_simple(
-		model,
-		encoded_tensor,
-		/*max_new_tokens=*/6,
-		/*context_size=*/cfg_124m.context_length
-	);
+	torch::Tensor out = generate_text_simple(model, encoded_tensor, /*max_new_tokens=*/6, /*context_size=*/cfg_124m.context_length);
 
 	std::string decoded_text = tokenizer.decode(out);
 	if (decoded_text.empty())
@@ -401,9 +406,7 @@ int run_gpt()
 		return 1;
 	}
 
-	std::cout << "\n\n" << std::string(50, '=') << "\n"
-		<< std::string(22, ' ') << "OUT\n"
-		<< std::string(50, '=') << "\n\n";
+	std::cout << "\n\n" << std::string(50, '=') << "\n" << std::string(22, ' ') << "OUT\n" << std::string(50, '=') << "\n\n";
 	std::cout << "Output: \n" << out << "\n";
 	std::cout << "Output length: " << out.size(1) << "\n";
 	std::cout << "Output text: " << decoded_text << "\n";
@@ -428,6 +431,9 @@ int main()
 	}
 
 	// run_gpt has returned, so its decoder references are gone before shutdown.
-	if (!TiktokenDecoder::shutdown_python()) return 1;
+	if (!TiktokenDecoder::shutdown_python())
+	{
+		return 1;
+	}
 	return result;
 }
