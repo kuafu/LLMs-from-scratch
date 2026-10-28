@@ -269,7 +269,7 @@ private:
 	torch::nn::Embedding tok_emb{ nullptr };
 	torch::nn::Embedding pos_emb{ nullptr };
 	torch::nn::Dropout drop_emb{ nullptr };
-	torch::nn::Sequential trf_blocks{ nullptr };
+	torch::nn::ModuleList trf_blocks{ nullptr };
 	LayerNorm final_norm{ nullptr };
 	torch::nn::Linear out_head{ nullptr };
 
@@ -280,7 +280,7 @@ public:
 		pos_emb = register_module("pos_emb", torch::nn::Embedding(cfg.context_length, cfg.emb_dim));
 		drop_emb = register_module("drop_emb", torch::nn::Dropout(cfg.drop_rate));
 
-		trf_blocks = register_module("trf_blocks", torch::nn::Sequential());
+		trf_blocks = register_module("trf_blocks", torch::nn::ModuleList());
 		for (int64_t i = 0; i < cfg.n_layers; ++i)
 		{
 			trf_blocks->push_back(TransformerBlock(cfg));
@@ -301,7 +301,10 @@ public:
 		auto pos_embeds = pos_emb(torch::arange(seq_len, in_idx.options()));
 		auto x = tok_embeds + pos_embeds;
 		x = drop_emb(x);
-		x = trf_blocks->forward(x);
+		for (auto& block : *trf_blocks)
+		{
+			x = block->as<TransformerBlockImpl>()->forward(x);
+		}
 		x = final_norm(x);
 		auto logits = linear_like_python(x, *out_head);
 		return logits;
