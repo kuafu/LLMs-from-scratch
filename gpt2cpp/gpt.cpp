@@ -40,11 +40,11 @@ public:
 		{
 			for (size_t i = 0; i <= token_ids.size() - max_length - 1; i += stride)
 			{
-				auto input_chunk = std::vector<int64_t>(
+				std::vector<int64_t> input_chunk = std::vector<int64_t>(
 					token_ids.begin() + i,
 					token_ids.begin() + i + max_length
 				);
-				auto target_chunk = std::vector<int64_t>(
+				std::vector<int64_t> target_chunk = std::vector<int64_t>(
 					token_ids.begin() + i + 1,
 					token_ids.begin() + i + max_length + 1
 				);
@@ -111,13 +111,13 @@ public:
 
 	torch::Tensor forward(torch::Tensor x)
 	{
-		auto b = x.size(0);
-		auto num_tokens = x.size(1);
-		auto d_in = x.size(2);
+		int64_t b = x.size(0);
+		int64_t num_tokens = x.size(1);
+		int64_t d_in = x.size(2);
 
-		auto keys = linear_like_python(x, *W_key);
-		auto queries = linear_like_python(x, *W_query);
-		auto values = linear_like_python(x, *W_value);
+		torch::Tensor keys = linear_like_python(x, *W_key);
+		torch::Tensor queries = linear_like_python(x, *W_query);
+		torch::Tensor values = linear_like_python(x, *W_value);
 
 		// 拆分多头并转置: (b, num_tokens, d_out) -> (b, num_heads, num_tokens, head_dim)
 		keys = keys.view({ b, num_tokens, num_heads, head_dim }).transpose(1, 2);
@@ -125,21 +125,21 @@ public:
 		values = values.view({ b, num_tokens, num_heads, head_dim }).transpose(1, 2);
 
 		// 计算注意力分数: Q @ K^T
-		auto attn_scores = torch::matmul(queries, keys.transpose(2, 3));
+		torch::Tensor attn_scores = torch::matmul(queries, keys.transpose(2, 3));
 
 		// 截取当前 token 长度的掩码并转换为布尔型
-		auto mask_bool = mask.to(torch::kBool).slice(0, 0, num_tokens).slice(1, 0, num_tokens);
+		torch::Tensor mask_bool = mask.to(torch::kBool).slice(0, 0, num_tokens).slice(1, 0, num_tokens);
 
 		// 填充负无穷
 		attn_scores.masked_fill_(mask_bool, -std::numeric_limits<float>::infinity());
 
 		// Softmax 归一化缩放
 		double scale = std::sqrt(static_cast<double>(keys.size(-1)));
-		auto attn_weights = torch::softmax(attn_scores / scale, -1);
+		torch::Tensor attn_weights = torch::softmax(attn_scores / scale, -1);
 		attn_weights = dropout(attn_weights);
 
 		// 加权求和上下文向量
-		auto context_vec = torch::matmul(attn_weights, values).transpose(1, 2);
+		torch::Tensor context_vec = torch::matmul(attn_weights, values).transpose(1, 2);
 		context_vec = context_vec.contiguous().view({ b, num_tokens, d_out });
 		context_vec = linear_like_python(context_vec, *out_proj);
 
@@ -167,10 +167,10 @@ public:
 
 	torch::Tensor forward(torch::Tensor x)
 	{
-		auto mean = x.mean(-1, /*keepdim=*/true);
+		torch::Tensor mean = x.mean(-1, /*keepdim=*/true);
 		// unbiased=false 对应 correction=0
-		auto var = x.var(-1, /*unbiased=*/false, /*keepdim=*/true);
-		auto norm_x = (x - mean) / torch::sqrt(var + eps);
+		torch::Tensor var = x.var(-1, /*unbiased=*/false, /*keepdim=*/true);
+		torch::Tensor norm_x = (x - mean) / torch::sqrt(var + eps);
 		return scale * norm_x + shift;
 	}
 };
@@ -184,7 +184,7 @@ public:
 	torch::Tensor forward(torch::Tensor x)
 	{
 		// 与 Python 一样先创建默认浮点类型的标量张量，再计算平方根。
-		auto sqrt_2_over_pi = torch::sqrt(torch::tensor(2.0 / 3.14159265358979323846));
+		torch::Tensor sqrt_2_over_pi = torch::sqrt(torch::tensor(2.0 / 3.14159265358979323846));
 		return 0.5 * x * (1.0 + torch::tanh(
 			sqrt_2_over_pi * (x + 0.044715 * torch::pow(x, 3))
 		));
@@ -201,9 +201,9 @@ public:
 	FeedForwardImpl(const GPTConfig& cfg)
 	{
 		// 显式固定创建顺序，避免参数求值顺序影响随机初始化。
-		auto first = torch::nn::Linear(cfg.emb_dim, 4 * cfg.emb_dim);
-		auto activation = GELU();
-		auto second = torch::nn::Linear(4 * cfg.emb_dim, cfg.emb_dim);
+		torch::nn::Linear first = torch::nn::Linear(cfg.emb_dim, 4 * cfg.emb_dim);
+		GELU activation = GELU();
+		torch::nn::Linear second = torch::nn::Linear(4 * cfg.emb_dim, cfg.emb_dim);
 		layers = register_module("layers", torch::nn::Sequential(first, activation, second));
 	}
 
@@ -245,7 +245,7 @@ public:
 	torch::Tensor forward(torch::Tensor x)
 	{
 		// 自注意力残差连接
-		auto shortcut = x;
+		torch::Tensor shortcut = x;
 		x = norm1(x);
 		x = att(x);
 		x = drop_shortcut(x);
@@ -294,19 +294,19 @@ public:
 
 	torch::Tensor forward(torch::Tensor in_idx)
 	{
-		auto batch_size = in_idx.size(0);
-		auto seq_len = in_idx.size(1);
+		int64_t batch_size = in_idx.size(0);
+		int64_t seq_len = in_idx.size(1);
 
-		auto tok_embeds = tok_emb(in_idx);
-		auto pos_embeds = pos_emb(torch::arange(seq_len, in_idx.options()));
-		auto x = tok_embeds + pos_embeds;
+		torch::Tensor tok_embeds = tok_emb(in_idx);
+		torch::Tensor pos_embeds = pos_emb(torch::arange(seq_len, in_idx.options()));
+		torch::Tensor x = tok_embeds + pos_embeds;
 		x = drop_emb(x);
-		for (auto& block : *trf_blocks)
+		for (std::shared_ptr<torch::nn::Module>& block : *trf_blocks)
 		{
 			x = block->as<TransformerBlockImpl>()->forward(x);
 		}
 		x = final_norm(x);
-		auto logits = linear_like_python(x, *out_head);
+		torch::Tensor logits = linear_like_python(x, *out_head);
 		return logits;
 	}
 };
@@ -321,7 +321,7 @@ torch::Tensor generate_text_simple(GPTModel& model, torch::Tensor idx, int64_t m
 	{
 		int64_t seq_len = idx.size(1);
 		int64_t start_col = std::max<int64_t>(0, seq_len - context_size);
-		auto idx_cond = idx.slice(/*dim=*/1, start_col, seq_len);
+		torch::Tensor idx_cond = idx.slice(/*dim=*/1, start_col, seq_len);
 
 		torch::Tensor logits;
 		{
@@ -333,7 +333,7 @@ torch::Tensor generate_text_simple(GPTModel& model, torch::Tensor idx, int64_t m
 		logits = logits.select(/*dim=*/1, -1);
 
 		// 选出最大 logit 的 token id: (batch, 1)
-		auto idx_next = torch::argmax(logits, /*dim=*/-1, /*keepdim=*/true);
+		torch::Tensor idx_next = torch::argmax(logits, /*dim=*/-1, /*keepdim=*/true);
 
 		// 拼接到当前序列末尾
 		idx = torch::cat({ idx, idx_next }, /*dim=*/1);
@@ -373,7 +373,7 @@ int run_gpt()
 		std::cerr << "Failed to encode the input text.\n";
 		return 1;
 	}
-	auto encoded_tensor = torch::tensor(encoded, torch::kInt64).unsqueeze(0);
+	torch::Tensor encoded_tensor = torch::tensor(encoded, torch::kInt64).unsqueeze(0);
 
 	std::cout << "\n" << std::string(50, '=') << "\n"
 		<< std::string(22, ' ') << "IN\n"
@@ -387,7 +387,7 @@ int run_gpt()
 	std::cout << "]\n";
 	std::cout << "encoded_tensor.shape: [" << encoded_tensor.size(0) << ", " << encoded_tensor.size(1) << "]\n";
 
-	auto out = generate_text_simple(
+	torch::Tensor out = generate_text_simple(
 		model,
 		encoded_tensor,
 		/*max_new_tokens=*/6,
