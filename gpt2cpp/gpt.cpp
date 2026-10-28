@@ -187,11 +187,11 @@ private:
 public:
 	FeedForwardImpl(const GPTConfig& cfg)
 	{
-		layers = register_module("layers", torch::nn::Sequential(
-			torch::nn::Linear(cfg.emb_dim, 4 * cfg.emb_dim),
-			GELU(),
-			torch::nn::Linear(4 * cfg.emb_dim, cfg.emb_dim)
-		));
+		// 显式固定创建顺序，避免参数求值顺序影响随机初始化。
+		auto first = torch::nn::Linear(cfg.emb_dim, 4 * cfg.emb_dim);
+		auto activation = GELU();
+		auto second = torch::nn::Linear(4 * cfg.emb_dim, cfg.emb_dim);
+		layers = register_module("layers", torch::nn::Sequential(first, activation, second));
 	}
 
 	torch::Tensor forward(torch::Tensor x)
