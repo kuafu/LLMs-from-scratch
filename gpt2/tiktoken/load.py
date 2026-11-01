@@ -39,10 +39,10 @@ def read_file_cached(blobpath: str, expected_hash: str | None = None) -> bytes:
     elif "DATA_GYM_CACHE_DIR" in os.environ:
         cache_dir = os.environ["DATA_GYM_CACHE_DIR"]
     else:
-        import tempfile
-
-        cache_dir = os.path.join(tempfile.gettempdir(), "data-gym-cache")
-        user_specified_cache = False
+        # Default to current project cache directory: <project_root>/tiktoken_cache
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cache_dir = os.path.join(project_root, "tiktoken_cache")
+        user_specified_cache = True
 
     if cache_dir == "":
         # disable caching

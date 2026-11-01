@@ -2,7 +2,8 @@
 
 > **项目关联**：[`LLMs-from-scratch/gpt2`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2)  
 > **本地源码路径**：[`tiktoken/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken)  
-> **核心引用文件**：[`gpt2small.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/gpt2small.py) / [`tiktoken/_educational.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/_educational.py)
+> **本地缓存路径**：[`tiktoken_cache/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken_cache)  
+> **核心引用文件**：[`gpt2small.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/gpt2small.py) / [`tiktoken/_educational.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/_educational.py) / [`tiktoken/load.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/load.py)
 
 ---
 
@@ -11,8 +12,9 @@
 2. [分词编码全流程细节](#2-分词编码全流程细节)
 3. [核心算法细节：BPE 最小 Rank 贪心合并](#3-核心算法细节bpe-最小-rank-贪心合并)
 4. [工程架构与源码结构](#4-工程架构与源码结构)
-5. [性能内核：为什么 Tiktoken 极快](#5-性能内核为什么-tiktoken-极快)
-6. [本地调试与学习指引](#6-本地调试与学习指引)
+5. [词表来源、分发与本地缓存机制](#5-词表来源分发与本地缓存机制)
+6. [性能内核：为什么 Tiktoken 极快](#6-性能内核为什么-tiktoken-极快)
+7. [本地调试与学习指引](#7-本地调试与学习指引)
 
 ---
 
@@ -143,10 +145,11 @@ LLMs-from-scratch/gpt2/
 │   ├── __init__.py                     <-- 包入口导出
 │   ├── core.py                         <-- Python 封装层（Encoding 类）
 │   ├── registry.py                     <-- 编码注册表（管理 "gpt2"、"cl100k_base"）
-│   ├── load.py                         <-- 词表文件（.tiktoken）下载与缓存机制
+│   ├── load.py                         <-- 词表文件下载与缓存机制
 │   ├── model.py                        <-- 模型名到编码名的映射
 │   ├── _educational.py                 <-- 官方纯 Python 算法对照实现
 │   └── _tiktoken.cp313-win_amd64.pyd   <-- Rust 编译的底层加速库（PyO3 绑定）
+├── tiktoken_cache/                    <-- 本地词表缓存目录（离线完全自给）
 ├── gpt2small.py                        <-- GPT-2 核心训练与生成脚本
 └── gtp2small.ipynb                     <-- 交互式 Notebook
 ```
@@ -169,7 +172,60 @@ print(tiktoken.__file__)
 
 ---
 
-## 5. 性能内核：为什么 Tiktoken 极快
+## 5. 词表来源、分发与本地缓存机制
+
+### 5.1 训练语料来源
+* **GPT-2 词表 (`gpt2` / `r50k_base`)**：
+  * **原始语料**：OpenAI 的 **WebText** 数据集（约 40GB 文本，由 Reddit 上高赞外链网页爬取清洗而来）。
+  * **训练演化**：以 256 个 UTF-8 基础字节为底，连续执行 50,000 次最高频相邻对合并，得到通用英文子词库。
+* **GPT-4 词表 (`cl100k_base`)**：
+  * 语料扩充至万亿级高质量多语言（强化中文）、开源代码、数学与科技论文，词表扩容至约 10 万。
+
+### 5.2 官方网络托管与文件格式
+`tiktoken` 首次使用时需通过网络获取词表，数据托管在微软 Azure Blob 存储：
+
+| 编码名称 | 模型映射 | 远程下载路径 (Azure Blob) | SHA-256 校验和 |
+| :--- | :--- | :--- | :--- |
+| **`gpt2`** | 原版 GPT-2 | `vocab.bpe` & `encoder.json`<br>🔗 [openaipublic.../gpt-2/encodings/main/vocab.bpe](https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/vocab.bpe) | `1ce1664...` / `1961396...` |
+| **`r50k_base`** | GPT-2 / GPT-3 | 🔗 [openaipublic.../encodings/r50k_base.tiktoken](https://openaipublic.blob.core.windows.net/encodings/r50k_base.tiktoken) | `306cd27...` |
+| **`cl100k_base`** | GPT-4 / 3.5 | 🔗 [openaipublic.../encodings/cl100k_base.tiktoken](https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken) | `223921b...` |
+
+* **`.tiktoken` 存储格式**：极其精简，每一行均为 `Base64(Token 原始字节) + " " + Rank`。
+
+### 5.3 缓存目录改造实现（由系统临时转本地工程）
+
+原生 `tiktoken` 默认将缓存文件存放于系统的临时目录（`%TEMP%\data-gym-cache`）。为保证工程的**独立性、可移植性与离线可用性**，本项目修改了本地 [`tiktoken/load.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/load.py#L41-L46)：
+
+```python
+    if "TIKTOKEN_CACHE_DIR" in os.environ:
+        cache_dir = os.environ["TIKTOKEN_CACHE_DIR"]
+    elif "DATA_GYM_CACHE_DIR" in os.environ:
+        cache_dir = os.environ["DATA_GYM_CACHE_DIR"]
+    else:
+        # 默认回落到当前工程根目录下的 tiktoken_cache 文件夹
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cache_dir = os.path.join(project_root, "tiktoken_cache")
+        user_specified_cache = True
+```
+
+### 5.4 缓存文件哈希身份解密（关键认知）
+
+在 [`tiktoken_cache/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken_cache) 目录下，文件名是**下载 URL 的 SHA-1 哈希值**。其各文件的对应关系如下：
+
+| 缓存文件名 (URL SHA-1) | 文件大小 | 对应真实文件 | 作用与模型归属 |
+| :--- | :--- | :--- | :--- |
+| **`6d1cbeee0f20b3d9...`** | 456 KB | `vocab.bpe` | **GPT-2 核心**：BPE 规则合并先后顺序列表 |
+| **`6c7ea1a7e38e3a7f...`** | 1.0 MB | `encoder.json` | **GPT-2 核心**：字节字符串到 Token ID 的全量映射表 |
+| **`9b5ad71b2ce53022...`** | 1.68 MB | `cl100k_base.tiktoken` | **GPT-4 / ChatGPT 核心**：10 万词表文件 |
+| **`0ea1e91bbb3a60f7...`** | 835 KB | `r50k_base.tiktoken` | **GPT-2/3 标准版**：单文件版的 50k 词表 |
+
+> [!NOTE]
+> **为什么当前工程默认只需要前 2 个文件？**  
+> 因为当前项目 [`gpt2small.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/gpt2small.py#L44) 明确使用 `tiktoken.get_encoding("gpt2")`。该实现完全基于原版 GPT-2 的 `vocab.bpe` 与 `encoder.json` 两个文件。只要拥有这两个文件，当前 GPT-2 模型的训练与推理就是 **100% 完整且可完全脱网离线运行** 的。第 3 个文件为 GPT-4 词表。
+
+---
+
+## 6. 性能内核：为什么 Tiktoken 极快
 
 相较于早期原版 Python 分词器或部分纯解释型库，`tiktoken` 拥有 5~30 倍的速度优势，核心来自以下底层工程优化：
 
@@ -182,9 +238,9 @@ print(tiktoken.__file__)
 
 ---
 
-## 6. 本地调试与学习指引
+## 7. 本地调试与学习指引
 
-拥有本地源码后，您可以非常方便地进行单步调试和内部机制观测：
+拥有本地源码与本地缓存后，您可以非常方便地进行单步调试和内部机制观测：
 
 ### 技巧 1：开启算法可视化合并过程
 在工程中直接调用教学模块，观测 `"Hello world"` 是如何一步步被字节合并的：
