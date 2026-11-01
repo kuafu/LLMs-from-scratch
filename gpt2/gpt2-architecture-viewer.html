@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPT-2 Small (124M) · 交互式系统架构分层视窗</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --badge-bg: #334155;
+    }
+    html.light {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --badge-bg: #f1f5f9;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .panel-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+    }
+    .tab-btn {
+      color: var(--text-muted);
+      transition: all 0.15s ease-in-out;
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+    .tab-btn.active {
+      background-color: var(--accent);
+      color: #ffffff !important;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+    }
+    .tensor-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--badge-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      display: inline-block;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Top Navigation Header -->
+    <header class="panel-card rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="px-3 py-1 rounded-full text-xs font-bold tracking-wide bg-blue-500/10 text-blue-500 border border-blue-500/20">
+            GPT-2 Small · 124M
+          </span>
+          <h1 class="text-2xl font-black tracking-tight">GPT 架构分层全景与逻辑流视窗</h1>
+        </div>
+        <p class="text-sm mt-1.5" style="color: var(--text-muted);">
+          对应源码：<code class="font-mono text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">gtp2small.ipynb</code> · 
+          超参规格：<span class="font-mono text-xs">d_model=768, heads=12, layers=12, context=1024</span>
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Theme toggle button -->
+        <button onclick="toggleTheme()" class="px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors" style="border-color: var(--card-border); background-color: var(--badge-bg);">
+          <span id="theme-icon">🌙</span> <span id="theme-text">明暗切换</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs Bar -->
+    <nav class="flex flex-wrap gap-2 p-1.5 rounded-xl panel-card shadow-sm text-xs md:text-sm">
+      <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active px-4 py-2 rounded-lg">
+        1. 全局架构 (GPTModel)
+      </button>
+      <button onclick="switchTab('block')" id="tab-block" class="tab-btn px-4 py-2 rounded-lg">
+        2. TransformerBlock (Pre-LN)
+      </button>
+      <button onclick="switchTab('attention')" id="tab-attention" class="tab-btn px-4 py-2 rounded-lg">
+        3. 因果多头注意力 (MHA)
+      </button>
+      <button onclick="switchTab('generation')" id="tab-generation" class="tab-btn px-4 py-2 rounded-lg">
+        4. 自回归生成循环
+      </button>
+      <button onclick="switchTab('params')" id="tab-params" class="tab-btn px-4 py-2 rounded-lg">
+        5. 参数量分布与进阶
+      </button>
+    </nav>
+
+    <!-- ==================== TAB 1: 全局架构 ==================== -->
+    <section id="view-overview" class="tab-view space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 左侧两栏：流水线流程 -->
+        <div class="lg:col-span-2 space-y-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-blue-500">端到端前向传播流 (Forward Pipeline)</h2>
+
+          <!-- Step 1: Input -->
+          <div class="panel-card p-4 rounded-xl flex items-start justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 font-bold text-xs flex items-center justify-center">1</span>
+                <span class="font-bold text-base">Token 序列输入 (Input Text & BPE)</span>
+              </div>
+              <p class="text-xs mt-1" style="color: var(--text-muted);">
+                文本字符串（如 <code class="text-amber-400">"Hello, I am"</code>）经 <code>tiktoken</code> BPE 编码为离散 ID 序列：<code>[15496, 11, 314, 716]</code>。
+              </p>
+            </div>
+            <span class="tensor-tag">形状: (B, T) = (1, 4)</span>
+          </div>
+
+          <!-- Step 2: Dual Embeddings -->
+          <div class="panel-card p-4 rounded-xl space-y-2">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-500 font-bold text-xs flex items-center justify-center">2</span>
+                  <span class="font-bold text-base">双嵌入相加与 Dropout (Token & Position)</span>
+                </div>
+                <p class="text-xs mt-1" style="color: var(--text-muted);">
+                  词嵌入矩阵 <code>tok_emb(50257, 768)</code> 与绝对位置嵌入矩阵 <code>pos_emb(1024, 768)</code> 逐元素相加。
+                </p>
+              </div>
+              <span class="tensor-tag">形状: (B, T, 768)</span>
+            </div>
+            <div class="p-2.5 rounded-lg font-mono text-xs" style="background: var(--badge-bg); border: 1px solid var(--card-border);">
+              tok_embeds = tok_emb(in_idx)   # (1, 4, 768)<br>
+              pos_embeds = pos_emb(0..T-1)   # (4, 768)<br>
+              x = drop_emb(tok_embeds + pos_embeds)
+            </div>
+          </div>
+
+          <!-- Step 3: 12 Blocks Loop -->
+          <div class="panel-card p-5 rounded-xl border-2 border-dashed border-blue-500/40 space-y-3" style="background: rgba(59, 130, 246, 0.03);">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="px-2.5 py-1 rounded-md bg-blue-500 text-white font-bold text-xs">× 12 层堆叠</span>
+                <span class="font-bold text-base text-blue-500">TransformerBlock 骨干序列</span>
+              </div>
+              <span class="tensor-tag">形状: (B, T, 768) 恒定</span>
+            </div>
+            <p class="text-xs" style="color: var(--text-muted);">
+              张量依次流经 12 个完全独立的 Transformer 核心块，每个核心块内部包含 Pre-LN 自注意力分支与 Pre-LN 前馈分支，双重残差直连防止深层梯度消失。
+            </p>
+          </div>
+
+          <!-- Step 4: Final Norm -->
+          <div class="panel-card p-4 rounded-xl flex items-start justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-500 font-bold text-xs flex items-center justify-center">4</span>
+                <span class="font-bold text-base">最终层归一化 (final_norm)</span>
+              </div>
+              <p class="text-xs mt-1" style="color: var(--text-muted);">
+                对第 12 层输出做最终层统计平稳处理：<code>LayerNorm(768)</code>。
+              </p>
+            </div>
+            <span class="tensor-tag">形状: (B, T, 768)</span>
+          </div>
+
+          <!-- Step 5: LM Head -->
+          <div class="panel-card p-4 rounded-xl flex items-start justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-full bg-rose-500/20 text-rose-500 font-bold text-xs flex items-center justify-center">5</span>
+                <span class="font-bold text-base">语言模型分类头 (out_head)</span>
+              </div>
+              <p class="text-xs mt-1" style="color: var(--text-muted);">
+                通过无偏置线性层 <code>Linear(768, 50257, bias=False)</code> 映射到全词表未归一化概率（Logits）。
+              </p>
+            </div>
+            <span class="tensor-tag">形状: (B, T, 50257)</span>
+          </div>
+
+        </div>
+
+        <!-- 右侧一栏：超参与架构卡片 -->
+        <div class="space-y-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-blue-500">超参配置速查表</h2>
+          <div class="panel-card p-4 rounded-xl space-y-3 text-xs">
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">词表容量 vocab_size</span>
+              <span class="font-mono font-bold">50,257</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">最大上下文 context_length</span>
+              <span class="font-mono font-bold">1,024</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">隐藏特征维 emb_dim</span>
+              <span class="font-mono font-bold">768</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">注意力头数 n_heads</span>
+              <span class="font-mono font-bold">12</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">单头子空间维度 head_dim</span>
+              <span class="font-mono font-bold">64 (768 / 12)</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">前馈层放大倍数</span>
+              <span class="font-mono font-bold">4× (3,072 维)</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">堆叠块数 n_layers</span>
+              <span class="font-mono font-bold">12 层</span>
+            </div>
+            <div class="flex justify-between py-1.5 border-b" style="border-color: var(--card-border);">
+              <span style="color: var(--text-muted);">Dropout 率</span>
+              <span class="font-mono font-bold">0.1</span>
+            </div>
+            <div class="flex justify-between py-1.5">
+              <span style="color: var(--text-muted);">Q/K/V 偏置 qkv_bias</span>
+              <span class="font-mono font-bold text-amber-500">False (原版OpenAI需True)</span>
+            </div>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl space-y-2 text-xs">
+            <span class="font-bold text-blue-400">💡 为什么采用 Pre-LayerNorm?</span>
+            <p style="color: var(--text-muted);" class="leading-relaxed">
+              初代 Transformer (Vaswani et al., 2017) 采用 Post-LN（在残差相加后才做 LayerNorm），在深层网络中梯度极易在反向传播时衰减，必须依赖学习率热身 (Warmup)。<br><br>
+              GPT-2 改进为 <b>Pre-LayerNorm</b>：归一化在自注意力与前馈子层之前进行，残差通道（Residual Highway）直接无阻碍连通，极大增强了训练稳定性。
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: TransformerBlock ==================== -->
+    <section id="view-block" class="tab-view hidden space-y-6">
+      <div class="panel-card p-6 rounded-2xl space-y-5">
+        <div>
+          <h2 class="text-lg font-bold text-blue-500">TransformerBlock: Pre-LN 与双残差高速通道 (Residual Highway)</h2>
+          <p class="text-xs mt-1" style="color: var(--text-muted);">
+            每个 Block 接受形状为 <code>(B, T, 768)</code> 的张量输入，原样输出形状相同的张量。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 分支 1: MHA -->
+          <div class="p-5 rounded-xl border space-y-4" style="background: var(--badge-bg); border-color: var(--card-border);">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-blue-400">子层 1：规范化多头因果注意力</span>
+              <span class="tensor-tag">(B, T, 768)</span>
+            </div>
+            
+            <div class="space-y-2.5 text-xs">
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">1. norm1 (LayerNorm)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">对输入 x 沿最后一个特征维度做均值方差标准化，平稳特征分布。</p>
+              </div>
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">2. att (MultiHeadAttention)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">12 个独立注意力头并行捕获多粒度上下文关联，因果掩码遮蔽未来。</p>
+              </div>
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">3. drop_shortcut (Dropout)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">丢弃概率 0.1，训练阶段抑制过拟合。</p>
+              </div>
+              <div class="p-3 rounded-lg font-bold border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                ➔ x = x + shortcut (第一次残差求和)
+              </div>
+            </div>
+          </div>
+
+          <!-- 分支 2: FFN -->
+          <div class="p-5 rounded-xl border space-y-4" style="background: var(--badge-bg); border-color: var(--card-border);">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm text-purple-400">子层 2：规范化两层前馈网络</span>
+              <span class="tensor-tag">(B, T, 768)</span>
+            </div>
+
+            <div class="space-y-2.5 text-xs">
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">1. norm2 (LayerNorm)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">为前馈分支独立执行层归一化。</p>
+              </div>
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">2. ff (FeedForward: 768 ➔ 3072 ➔ 768)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">线性升维 4 倍后经平滑的 GELU 非线性激活，再降维投影回 768 维。</p>
+              </div>
+              <div class="panel-card p-3 rounded-lg">
+                <span class="font-bold">3. drop_shortcut (Dropout)</span>
+                <p class="mt-0.5" style="color: var(--text-muted);">丢弃概率 0.1。</p>
+              </div>
+              <div class="p-3 rounded-lg font-bold border border-purple-500/30 bg-purple-500/10 text-purple-400">
+                ➔ x = x + shortcut (第二次残差求和)
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: 因果注意力 ==================== -->
+    <section id="view-attention" class="tab-view hidden space-y-6">
+      <div class="panel-card p-6 rounded-2xl space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-amber-500">MultiHeadAttention: 多头因果自注意力的四步流水线</h2>
+          <p class="text-xs mt-1" style="color: var(--text-muted);">
+            将单个 768 维特征向量切分成 12 个 64 维头，在每个子空间内独立做 Scaled Dot-Product 注意力并施加因果掩码。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+          <div class="panel-card p-4 rounded-xl border border-amber-500/30 space-y-1.5">
+            <span class="font-bold text-amber-400">Step 1: Q/K/V 线性映射</span>
+            <div class="font-mono" style="color: var(--text-muted);">
+              queries = W_query(x)<br>
+              keys = W_key(x)<br>
+              values = W_value(x)<br>
+              形状: (B, T, 768)
+            </div>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl border border-indigo-500/30 space-y-1.5">
+            <span class="font-bold text-indigo-400">Step 2: 拆解多头并转置</span>
+            <div class="font-mono" style="color: var(--text-muted);">
+              view(B, T, 12, 64)<br>
+              transpose(1, 2)<br>
+              ➔ (B, 12, T, 64)
+            </div>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl border border-rose-500/30 space-y-1.5">
+            <span class="font-bold text-rose-400">Step 3: 掩码与 Softmax</span>
+            <div class="font-mono" style="color: var(--text-muted);">
+              scores = Q @ K.T / √64<br>
+              scores.masked_fill(-inf)<br>
+              weights = softmax(scores)
+            </div>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl border border-emerald-500/30 space-y-1.5">
+            <span class="font-bold text-emerald-400">Step 4: 汇聚并映射输出</span>
+            <div class="font-mono" style="color: var(--text-muted);">
+              context = weights @ V<br>
+              拼合为 (B, T, 768)<br>
+              out_proj(context)
+            </div>
+          </div>
+        </div>
+
+        <!-- Causal Mask Visual Box -->
+        <div class="panel-card p-5 rounded-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">因果掩码交互演示 (Causal Mask - 防止未来信息泄露)</h3>
+            <span class="text-xs" style="color: var(--text-muted);">以序列长度 T=4 为例</span>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2 max-w-sm mx-auto text-center font-mono text-xs p-3 rounded-xl" style="background: var(--badge-bg); border: 1px solid var(--card-border);">
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q0 · k0</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q1 · k0</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q1 · k1</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q2 · k0</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q2 · k1</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q2 · k2</div>
+            <div class="p-2.5 rounded bg-rose-500/20 text-rose-400 font-bold">-inf</div>
+
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q3 · k0</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q3 · k1</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q3 · k2</div>
+            <div class="p-2.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">q3 · k3</div>
+          </div>
+
+          <p class="text-xs text-center" style="color: var(--text-muted);">
+            绿色单元格：当前时刻可见的历史上下文；红色单元格：被填充为 <code>-torch.inf</code>，经 <code>torch.softmax</code> 计算后对应权重精确为 <b>0.0%</b>。
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: 自回归生成循环 ==================== -->
+    <section id="view-generation" class="tab-view hidden space-y-6">
+      <div class="panel-card p-6 rounded-2xl space-y-5">
+        <div>
+          <h2 class="text-lg font-bold text-emerald-500">自回归生成循环 (`generate_text_simple`)</h2>
+          <p class="text-xs mt-1" style="color: var(--text-muted);">
+            展示每次循环如何从当前提示词自增一个 Token，直到达到预定长度。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+          <div class="panel-card p-4 rounded-xl space-y-2">
+            <span class="font-bold text-blue-400">1. 滑动窗口截断</span>
+            <p style="color: var(--text-muted);">
+              <code>idx_cond = idx[:, -context_size:]</code><br>
+              如果累积序列超过 1024 上限，只保留末尾 1024 个 Token 作为输入。
+            </p>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl space-y-2">
+            <span class="font-bold text-blue-400">2. 全模型前向计算</span>
+            <p style="color: var(--text-muted);">
+              <code>with torch.no_grad():<br>logits = model(idx_cond)</code><br>
+              关闭梯度计算，输出全序列每个位置对 50,257 词表的 Logits。
+            </p>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl space-y-2">
+            <span class="font-bold text-blue-400">3. 抓取末尾并贪婪采样</span>
+            <p style="color: var(--text-muted);">
+              <code>logits = logits[:, -1, :]<br>idx_next = torch.argmax(logits, dim=-1, keepdim=True)</code><br>
+              取最高概率对应候选词。
+            </p>
+          </div>
+
+          <div class="panel-card p-4 rounded-xl space-y-2">
+            <span class="font-bold text-blue-400">4. 拼回输入序列</span>
+            <p style="color: var(--text-muted);">
+              <code>idx = torch.cat((idx, idx_next), dim=1)</code><br>
+              序列长度由 T 变为 T+1，开启下一轮迭代。
+            </p>
+          </div>
+        </div>
+
+        <!-- Generation demo in notebook -->
+        <div class="p-4 rounded-xl border text-xs font-mono space-y-2" style="background: var(--badge-bg); border-color: var(--card-border);">
+          <div class="font-bold text-amber-400">Notebook 运行实际输出样例：</div>
+          <div style="color: var(--text-muted);">
+            输入: "Hello, I am" ➔ [15496, 11, 314, 716] (长 4)<br>
+            采样 6 步 ➔ [15496, 11, 314, 716, 27018, 24086, 47843, 30961, 42348, 7267] (长 10)<br>
+            解码: "Hello, I am Featureiman Byeswickattribute argue" (未经预训练的随机权重输出)
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: 参数量分布与进阶 ==================== -->
+    <section id="view-params" class="tab-view hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- 参数量表格 -->
+        <div class="panel-card p-5 rounded-2xl space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-bold">模块参数量精细核算</h2>
+            <span class="text-xs font-mono font-bold text-blue-400">总计 163M (未绑定) / 124M (绑定)</span>
+          </div>
+
+          <table class="w-full text-xs text-left">
+            <thead class="border-b" style="border-color: var(--card-border); color: var(--text-muted);">
+              <tr>
+                <th class="py-2">模块名称</th>
+                <th class="py-2 font-mono">形状与公式</th>
+                <th class="py-2 text-right font-mono">参数量</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y font-mono" style="border-color: var(--card-border);">
+              <tr>
+                <td class="py-2 text-blue-400 font-sans">词嵌入 tok_emb</td>
+                <td>50,257 × 768</td>
+                <td class="text-right">38,597,376</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-indigo-400 font-sans">位置嵌入 pos_emb</td>
+                <td>1,024 × 768</td>
+                <td class="text-right">786,432</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-emerald-400 font-sans">12 个 TransformerBlock</td>
+                <td>12 × 7,085,568</td>
+                <td class="text-right">85,026,816</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-amber-400 font-sans">最终 LayerNorm</td>
+                <td>2 × 768</td>
+                <td class="text-right">1,536</td>
+              </tr>
+              <tr>
+                <td class="py-2 text-rose-400 font-sans">输出投影头 out_head</td>
+                <td>768 × 50,257</td>
+                <td class="text-right">38,597,376</td>
+              </tr>
+              <tr class="font-bold">
+                <td class="py-2.5 text-base font-sans" colspan="2">总计 (Float32 约 622 MiB)</td>
+                <td class="text-right text-base text-blue-500">163,009,536</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="p-3 rounded-lg text-xs" style="background: var(--badge-bg); color: var(--text-muted);">
+            💡 <b>Weight Tying 权重共享：</b> 原版 GPT-2 将 <code>out_head.weight</code> 直接复用 <code>tok_emb.weight</code>，不单独占用 38.6M 参数，故净参数量为 <b>124,412,160 (≈ 124M)</b>。
+          </div>
+        </div>
+
+        <!-- 进阶改进方向 -->
+        <div class="panel-card p-5 rounded-2xl space-y-4">
+          <h2 class="text-base font-bold text-purple-400">现代化大模型演进建议 (对标 Llama / Qwen)</h2>
+          
+          <div class="space-y-3 text-xs">
+            <div class="panel-card p-3 rounded-lg">
+              <span class="font-bold text-blue-400">1. KV Cache (键值缓存加速生成)</span>
+              <p class="mt-0.5" style="color: var(--text-muted);">
+                将自回归生成的平方级复杂度 O(N²) 降低为线性复杂度 O(N)，仅对最新 Token 计算注意力。
+              </p>
+            </div>
+
+            <div class="panel-card p-3 rounded-lg">
+              <span class="font-bold text-blue-400">2. RoPE 旋转位置编码</span>
+              <p class="mt-0.5" style="color: var(--text-muted);">
+                取代可学习的绝对位置嵌入，赋能模型强大的相对距离感知与长上下文外推能力。
+              </p>
+            </div>
+
+            <div class="panel-card p-3 rounded-lg">
+              <span class="font-bold text-blue-400">3. RMSNorm 替代 LayerNorm</span>
+              <p class="mt-0.5" style="color: var(--text-muted);">
+                免除均值中心化统计计算，仅使用均方根缩放，计算速度更快、数值更平稳。
+              </p>
+            </div>
+
+            <div class="panel-card p-3 rounded-lg">
+              <span class="font-bold text-blue-400">4. SwiGLU 门控前馈网络</span>
+              <p class="mt-0.5" style="color: var(--text-muted);">
+                在相同参数量预算下显著增强非线性表征与泛化能力。
+              </p>
+            </div>
+
+            <div class="panel-card p-3 rounded-lg">
+              <span class="font-bold text-blue-400">5. FlashAttention / PyTorch SDPA</span>
+              <p class="mt-0.5" style="color: var(--text-muted);">
+                硬件感知的高效注意力核函数，避免显存反复读写 T×T 注意力大矩阵。
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Tab switching logic
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      const target = document.getElementById('view-' + tabId);
+      const btn = document.getElementById('tab-' + tabId);
+      if (target) target.classList.remove('hidden');
+      if (btn) btn.classList.add('active');
+    }
+
+    // Theme toggling logic
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isLight = html.classList.toggle('light');
+      document.getElementById('theme-icon').textContent = isLight ? '☀️' : '🌙';
+      document.getElementById('theme-text').textContent = isLight ? '浅色模式' : '深色模式';
+      localStorage.setItem('gpt2-theme', isLight ? 'light' : 'dark');
+    }
+
+    // Initialize theme based on preference
+    (function initTheme() {
+      const saved = localStorage.getItem('gpt2-theme');
+      if (saved === 'light' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+        document.documentElement.classList.add('light');
+        document.getElementById('theme-icon').textContent = '☀️';
+        document.getElementById('theme-text').textContent = '浅色模式';
+      }
+    })();
+  </script>
+</body>
+</html>
