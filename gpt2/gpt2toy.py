@@ -1,18 +1,38 @@
 # 本文件汇总了我们在第2至4章 [Chapters 2-4] 中介绍的所有相关代码。
 # 本文件可作为独立脚本 [Standalone Script] 直接运行。
+# 本次调整：仅引入第2章的 SimpleTokenizerV2 代替 tiktoken，其余模型结构和逻辑保持原始纯净状态。
 
+import re
 import sys
-
-import tiktoken
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-# 代码复制自 ../ch04/01_main-chapter-code/gpt.py
+# 代码复制自 ./gpt2small.py
 
 #####################################
 # 第2章 [Chapter 2]
 #####################################
+
+class SimpleTokenizerV2:
+    def __init__(self, vocab):
+        self.str_to_int = vocab
+        self.int_to_str = {i: s for s, i in vocab.items()}
+
+    def encode(self, text):
+        preprocessed = re.split(r'([,.:;?_!"()\']|--|\s)', text)
+        preprocessed = [item.strip() for item in preprocessed if item.strip()]
+        preprocessed = [
+            item if item in self.str_to_int else "<|unk|>"
+            for item in preprocessed
+        ]
+        ids = [self.str_to_int[s] for s in preprocessed]
+        return ids
+
+    def decode(self, ids):
+        text = " ".join([self.int_to_str.get(i, "<|unk|>") for i in ids])
+        text = re.sub(r'\s+([,.:;?!"()\'])', r'\1', text)
+        return text
 
 
 class GPTDatasetV1(Dataset):
@@ -21,7 +41,7 @@ class GPTDatasetV1(Dataset):
         self.target_ids = []
 
         # 对全部文本进行分词 [Tokenize]
-        token_ids = tokenizer.encode(txt, allowed_special={"<|endoftext|>"})
+        token_ids = tokenizer.encode(txt)
 
         # 使用滑动窗口 [Sliding Window] 将整本书切分为最大长度 [max_length] 的重叠序列 [Sequences]
         for i in range(0, len(token_ids) - max_length, stride):
@@ -37,18 +57,11 @@ class GPTDatasetV1(Dataset):
         return self.input_ids[idx], self.target_ids[idx]
 
 
-def create_dataloader_v1(txt, batch_size=4, max_length=256,
+def create_dataloader_v1(txt, tokenizer, batch_size=4, max_length=256,
                          stride=128, shuffle=True, drop_last=True, num_workers=0):
-    # 初始化分词器 [Tokenizer]
-    tokenizer = tiktoken.get_encoding("gpt2")
-
-    # 创建数据集 [Dataset]
     dataset = GPTDatasetV1(txt, tokenizer, max_length, stride)
-
-    # 创建数据加载器 [DataLoader]
     dataloader = DataLoader(
         dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers)
-
     return dataloader
 
 
@@ -243,7 +256,6 @@ def generate_text_simple(model, idx, max_new_tokens, context_size):
         print(f"idx.shape: {idx.shape}, idx: {idx}")
         print(f"idx[0]: {idx[0]}")
 
-
     return idx
 
 
@@ -258,13 +270,33 @@ def main():
         "qkv_bias": False        # 查询-键-值偏置 [Query-Key-Value Bias]
     }
 
+    # 自定义微型词表 (与 SimpleTokenizerV2 配合)
+    toy_vocab = {
+        "<|unk|>": 0,
+        "<|endoftext|>": 1,
+        "Hello": 2,
+        ",": 3,
+        "I": 4,
+        "am": 5
+    }
+    tokenizer = SimpleTokenizerV2(toy_vocab)
+
+    TOY_CONFIG = {
+        "vocab_size": len(toy_vocab),  # 6
+        "context_length": 6,           # 6
+        "emb_dim": 4,                  # 4
+        "n_heads": 2,                  # 2
+        "n_layers": 1,                 # 1
+        "drop_rate": 0.0,              # 0.0
+        "qkv_bias": False
+    }
+
     torch.manual_seed(123)
-    model = GPTModel(GPT_CONFIG_124M)
+    model = GPTModel(TOY_CONFIG)
     model.eval()  # 禁用随机失活 [Disable Dropout]
 
     start_context = "Hello, I am"
 
-    tokenizer = tiktoken.get_encoding("gpt2")
     encoded = tokenizer.encode(start_context)
     encoded_tensor = torch.tensor(encoded).unsqueeze(0)
 
@@ -276,11 +308,10 @@ def main():
     out = generate_text_simple(
         model=model,
         idx=encoded_tensor,
-        max_new_tokens=6,
-        context_size=GPT_CONFIG_124M["context_length"]
+        max_new_tokens=2,   # 生成新词元的数量 [Number of New Tokens to Generate]
+        context_size=TOY_CONFIG["context_length"]
     )
     decoded_text = tokenizer.decode(out.squeeze(0).tolist())
-
 
     print(f"\n\n{50*'='}\n{22*' '}OUT\n{50*'='}")
     print("\nOutput:", out)
