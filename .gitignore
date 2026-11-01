@@ -165,6 +165,7 @@ ch02/05_bpe-from-scratch/bpe_merges.txt
 ch02/05_bpe-from-scratch/encoder.json
 ch02/05_bpe-from-scratch/vocab.bpe
 ch02/05_bpe-from-scratch/vocab.json
+tiktoken_cache/
 encoder.json
 vocab.bpe
 vocab.json

@@ -192,36 +192,41 @@ print(tiktoken.__file__)
 
 * **`.tiktoken` 存储格式**：极其精简，每一行均为 `Base64(Token 原始字节) + " " + Rank`。
 
-### 5.3 缓存目录改造实现（由系统临时转本地工程）
+### 5.3 缓存目录与真实文件名改造（系统临时转本地工程语义化命名）
 
-原生 `tiktoken` 默认将缓存文件存放于系统的临时目录（`%TEMP%\data-gym-cache`）。为保证工程的**独立性、可移植性与离线可用性**，本项目修改了本地 [`tiktoken/load.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/load.py#L41-L46)：
+原生 `tiktoken` 存在两个局限：一是缓存放在系统临时目录（`%TEMP%\data-gym-cache`），二是文件名使用冷冰冰的 40 位 SHA-1 哈希串，可读性与可维护性较差。
 
+为此，本项目对本地 [`tiktoken/load.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken/load.py#L41-L75) 进行了两项重大优化：
+1. **本地工程化存储**：默认缓存重定向至当前工程根目录下的 [`tiktoken_cache/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken_cache)。
+2. **真实文件名映射 + 向下兼容**：从远程 URL 中提取有真实语义的文件名（如 `vocab.bpe`、`encoder.json`）直接作为文件名；若不存在则自动回退查找历史哈希名。
+
+关键改造逻辑：
 ```python
-    if "TIKTOKEN_CACHE_DIR" in os.environ:
-        cache_dir = os.environ["TIKTOKEN_CACHE_DIR"]
-    elif "DATA_GYM_CACHE_DIR" in os.environ:
-        cache_dir = os.environ["DATA_GYM_CACHE_DIR"]
-    else:
-        # 默认回落到当前工程根目录下的 tiktoken_cache 文件夹
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        cache_dir = os.path.join(project_root, "tiktoken_cache")
-        user_specified_cache = True
+    # 优先采用可读性更好的真实文件名 (如 vocab.bpe, encoder.json, cl100k_base.tiktoken)
+    real_filename = os.path.basename(blobpath.split("?")[0])
+    cache_path = os.path.join(cache_dir, real_filename)
+
+    # 向下兼容：如果真实文件名不存在，尝试检查旧版 SHA-1 哈希名
+    if not os.path.exists(cache_path):
+        legacy_key = hashlib.sha1(blobpath.encode()).hexdigest()
+        legacy_path = os.path.join(cache_dir, legacy_key)
+        if os.path.exists(legacy_path):
+            cache_path = legacy_path
 ```
 
-### 5.4 缓存文件哈希身份解密（关键认知）
+### 5.4 缓存目录清单与词表文件说明
 
-在 [`tiktoken_cache/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken_cache) 目录下，文件名是**下载 URL 的 SHA-1 哈希值**。其各文件的对应关系如下：
+改造后，[`tiktoken_cache/`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/tiktoken_cache) 目录呈现极清晰的语义化结构：
 
-| 缓存文件名 (URL SHA-1) | 文件大小 | 对应真实文件 | 作用与模型归属 |
+| 真实文件名 | 文件大小 | 对应模型 | 作用说明 |
 | :--- | :--- | :--- | :--- |
-| **`6d1cbeee0f20b3d9...`** | 456 KB | `vocab.bpe` | **GPT-2 核心**：BPE 规则合并先后顺序列表 |
-| **`6c7ea1a7e38e3a7f...`** | 1.0 MB | `encoder.json` | **GPT-2 核心**：字节字符串到 Token ID 的全量映射表 |
-| **`9b5ad71b2ce53022...`** | 1.68 MB | `cl100k_base.tiktoken` | **GPT-4 / ChatGPT 核心**：10 万词表文件 |
-| **`0ea1e91bbb3a60f7...`** | 835 KB | `r50k_base.tiktoken` | **GPT-2/3 标准版**：单文件版的 50k 词表 |
+| **`vocab.bpe`** | 456 KB | **GPT-2** | BPE 学习规则：按优先级排列的字符对合并清单 |
+| **`encoder.json`** | 1.0 MB | **GPT-2** | 全量映射表：合并后字节字符串到 Token ID 的字典 |
+| **`cl100k_base.tiktoken`** | 1.68 MB | **GPT-4 / ChatGPT** | GPT-4 专用的单文件 10 万子词与 Rank 映射表 |
 
 > [!NOTE]
-> **为什么当前工程默认只需要前 2 个文件？**  
-> 因为当前项目 [`gpt2small.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/gpt2small.py#L44) 明确使用 `tiktoken.get_encoding("gpt2")`。该实现完全基于原版 GPT-2 的 `vocab.bpe` 与 `encoder.json` 两个文件。只要拥有这两个文件，当前 GPT-2 模型的训练与推理就是 **100% 完整且可完全脱网离线运行** 的。第 3 个文件为 GPT-4 词表。
+> **关于文件数量的说明**：  
+> 当前项目运行 [`gpt2small.py`](file:///h:/LLM/BuildLLM/LLMs-from-scratch/gpt2/gpt2small.py#L44) 只需要 `vocab.bpe` 和 `encoder.json` 这 2 个文件，即可保证 GPT-2 模型的训练与推理 **100% 离线脱网运行**。目录下的第 3 个文件 `cl100k_base.tiktoken` 是 GPT-4 的词表，一并放置于此方便在工程中对照测试。
 
 ---
 

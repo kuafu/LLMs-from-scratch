@@ -48,9 +48,17 @@ def read_file_cached(blobpath: str, expected_hash: str | None = None) -> bytes:
         # disable caching
         return read_file(blobpath)
 
-    cache_key = hashlib.sha1(blobpath.encode()).hexdigest()
+    # 优先采用可读性更好的真实文件名 (如 vocab.bpe, encoder.json, cl100k_base.tiktoken)
+    real_filename = os.path.basename(blobpath.split("?")[0])
+    cache_path = os.path.join(cache_dir, real_filename)
 
-    cache_path = os.path.join(cache_dir, cache_key)
+    # 向下兼容：如果真实文件名不存在，尝试检查旧的 SHA-1 哈希名
+    if not os.path.exists(cache_path):
+        legacy_key = hashlib.sha1(blobpath.encode()).hexdigest()
+        legacy_path = os.path.join(cache_dir, legacy_key)
+        if os.path.exists(legacy_path):
+            cache_path = legacy_path
+
     if os.path.exists(cache_path):
         with open(cache_path, "rb", buffering=0) as f:
             data = f.read()
@@ -62,6 +70,9 @@ def read_file_cached(blobpath: str, expected_hash: str | None = None) -> bytes:
             os.remove(cache_path)
         except OSError:
             pass
+
+    # 下载保存时始终使用真实文件名
+    cache_path = os.path.join(cache_dir, real_filename)
 
     contents = read_file(blobpath)
     if expected_hash and not check_hash(contents, expected_hash):
