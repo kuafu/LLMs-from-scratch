@@ -1,6 +1,7 @@
 """GPT 教学诊断：终端打印、张量快照、参数统计和跨步剖析。
 
-仅在显式传入 TeachingTrace 时采集；GPT 核心不依赖本模块。
+仅在显式传入 TeachingTrace 时同步读取前向传播事件；不参与 GPT 核心计算。
+记录数据是首个 batch 样本的脱图 Python 快照，供报告渲染与跨步比较使用。
 """
 
 import math
@@ -9,36 +10,39 @@ import torch
 
 
 class _TeeWriter:
-    """将同一份输出同时写入终端和文本文件。"""
+    """将同一份输出同步转发到多个文本流，例如终端与报告文件。"""
 
     def __init__(self, *streams):
+        """保存待转发的流；不接管或关闭流的生命周期。"""
         self._streams = streams
 
     def write(self, text):
+        """把原文写入每个流，并返回输入文本长度以符合文件对象约定。"""
         for stream in self._streams:
             stream.write(text)
         return len(text)
 
     def flush(self):
+        """依次刷新所有底层流。"""
         for stream in self._streams:
             stream.flush()
 
 
 def _fmt_num(val, precision=4):
-    """格式化单个浮点数，兼容 -inf / inf"""
+    """按统一列宽格式化数值，并为正负无穷保留可读标记。"""
     if math.isinf(val):
         return f"{'-inf' if val < 0 else 'inf':>{precision + 3}}"
     return f"{val:>{precision + 3}.{precision}f}"
 
 
 def format_1d(vec, precision=4):
-    """将 1D 张量或列表格式化为对齐的单行字符串"""
+    """将一维张量或数值序列转成对齐字符串；张量只 detach 后搬到 CPU 展示。"""
     vals = vec.detach().cpu().tolist() if isinstance(vec, torch.Tensor) else list(vec)
     return "[" + ", ".join(_fmt_num(v, precision) for v in vals) + "]"
 
 
 def print_1d_tensor(vec, indent="", label="", chunk_size=8, precision=4):
-    """打印 1D 向量（若元素较多则按 chunk_size 自动分行对齐）"""
+    """打印一维向量；长向量按 chunk_size 分段，张量值仅用于展示。"""
     vals = vec.detach().cpu().tolist() if isinstance(vec, torch.Tensor) else list(vec)
     n = len(vals)
     prefix = f"{label}: " if label else ""
@@ -54,7 +58,7 @@ def print_1d_tensor(vec, indent="", label="", chunk_size=8, precision=4):
 
 
 def print_2d_tensor(mat, indent="", row_labels=None, chunk_cols=8, precision=4):
-    """打印 2D 矩阵，支持行标签注解及宽矩阵自动分块换行"""
+    """打印二维矩阵，可标注行名并将宽行按列分块；不改动输入张量。"""
     rows = mat.detach().cpu().tolist() if isinstance(mat, torch.Tensor) else mat
     num_rows = len(rows)
     num_cols = len(rows[0]) if num_rows > 0 else 0
@@ -77,7 +81,7 @@ def print_2d_tensor(mat, indent="", row_labels=None, chunk_cols=8, precision=4):
 
 
 def print_residual_comparison(shortcut, sub_out, merged, indent="", row_labels=None, sub_name="sub_out"):
-    """并排打印残差连接三列对照: shortcut + sub_out = merged"""
+    """并列展示残差连接的 Shortcut（捷径支路）、子层输出与逐元素相加结果。"""
     s_rows = shortcut.detach().cpu().tolist()
     u_rows = sub_out.detach().cpu().tolist()
     m_rows = merged.detach().cpu().tolist()
@@ -99,6 +103,10 @@ def _inspect_attention(
     raw_scores, mask_bool, scaled_scores, attn_weights, context_per_head, context_vec,
     out, verbose, show_data, token_labels, record_dict,
 ):
+    """读取 MHA（Multi-Head Attention）各阶段：Q/K/V（Query/Key/Value）、得分、权重、聚合值和输出投影。
+
+    verbose/show_data 控制讲解展示；record_dict 只存 batch[0] 的脱图 Python 快照。
+    """
     b, num_tokens, d_in = x.shape
     t_labels = token_labels or [f"t{i}" for i in range(num_tokens)]
     max_t_len = max((len(lbl) for lbl in t_labels), default=0)
@@ -194,6 +202,7 @@ def _inspect_attention(
 
 
 def _inspect_layer_norm(*, x, mean, var, std, norm_x, out, eps, verbose, show_data, token_labels, ln_name, indent, record_dict):
+    """讲解逐 Token 的 LN（Layer Normalization）输入统计、归一化结果及输出统计。"""
     post_mean = out.mean(dim=-1)
     post_var = out.var(dim=-1, unbiased=False)
 
@@ -227,6 +236,7 @@ def _inspect_layer_norm(*, x, mean, var, std, norm_x, out, eps, verbose, show_da
 
 
 def _inspect_feed_forward(*, x, h1, h2, out, verbose, show_data, token_labels, record_dict):
+    """记录 FFN（Feed-Forward Network）的升维投影、GELU 激活和降维输出。"""
     t_labels = token_labels or [f"t{i}" for i in range(x.shape[1])]
 
     if verbose:
@@ -252,6 +262,7 @@ def _inspect_feed_forward(*, x, h1, h2, out, verbose, show_data, token_labels, r
 
 
 def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, x_emb, x, verbose, show_data, token_labels, record_dict):
+    """检查 Token/位置嵌入及相加后的输入；快照只包含 batch[0]。"""
     batch_size, seq_len = in_idx.shape
     t_labels = token_labels
     max_lbl = max((len(lbl) for lbl in t_labels), default=0)
@@ -293,6 +304,7 @@ def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, 
 
 
 def _inspect_output(*, module, in_idx, logits, verbose, show_data, token_labels, record_dict):
+    """展示全序列各位置的词表 Logits 与 Softmax 概率，并保存首个样本。"""
     batch_size, seq_len = in_idx.shape
     t_labels = token_labels
     probs_all = torch.softmax(logits, dim=-1)
@@ -314,6 +326,7 @@ def _inspect_output(*, module, in_idx, logits, verbose, show_data, token_labels,
 
 
 def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
+    """建立当前自回归步的实际条件输入快照，并记录完整前缀信息。"""
     current_seq_len = idx.shape[1]
     current_ids = idx[0].tolist()
     current_text = tokenizer.decode(current_ids)
@@ -349,6 +362,7 @@ def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
 
 
 def _finish_generation(tokenizer, step, logits_last, idx_next, idx, step_rec, verbose):
+    """由末位置 Logits 记录候选概率、Argmax Token 与追加 Token 后的序列。"""
     token_labels = step_rec["token_labels"]
     current_seq_len = idx.shape[1] - 1
 
@@ -402,13 +416,15 @@ def _finish_generation(tokenizer, step, logits_last, idx_next, idx, step_rec, ve
 
 
 class TeachingTrace:
-    """同步打印并保存首个 batch 样本的教学快照，不持有模型或计算图。
+    """只读地同步讲解并保存首个 batch 样本的前向传播快照。
 
-    ``record`` 是最近一次 forward 的独立 Python 数据；生成时可将每步数据
-    追加到 ``steps_records``。同一个实例供一次顺序执行使用，不用于并发调用。
+    回调只观察已计算张量，不改写模型、输入或随机状态；快照脱离计算图。
+    ``record`` 保存最近一次 forward，生成时可把每步快照追加到 ``steps_records``。
+    同一个实例供一次顺序执行使用，不用于并发调用。
     """
 
     def __init__(self, tokenizer=None, *, verbose=True, show_data=True, steps_records=None):
+        """配置可选展示与逐步归档；初始化记录状态，不持有模型引用。"""
         self.tokenizer = tokenizer
         self.verbose = verbose
         self.show_data = show_data
@@ -422,9 +438,11 @@ class TeachingTrace:
 
     @torch.no_grad()
     def __call__(self, event, **values):
+        """同步分派只读事件处理器；回调内的辅助计算不构建 autograd 图。"""
         getattr(self, "_on_" + event)(**values)
 
     def _on_model_start(self, in_idx, training=False):
+        """开始一次模型前向记录，按 batch[0] 输入建立 Token 标签与阶段容器。"""
         if self.verbose:
             print(f"  >>> GPTModel.forward begin | in_idx.shape={tuple(in_idx.shape)}")
         if not self._generating:
@@ -444,15 +462,18 @@ class TeachingTrace:
             ]
 
     def _on_embeddings(self, **values):
+        """记录词嵌入、位置嵌入和两者相加后的输入阶段。"""
         record = self.record["embeddings"] = {}
         _inspect_embeddings(**values, verbose=self.verbose, show_data=self.show_data,
                             token_labels=self._labels, record_dict=record)
 
     def _on_blocks_start(self, num_blocks):
+        """标记 Transformer Block 主干的开始并报告层数。"""
         if self.verbose:
             print(f"  ┌── [2. Transformer 核心主干网络 (共 {num_blocks} 个 Block 堆叠)]")
 
     def _on_block_start(self, x):
+        """为当前 Block 建立快照，并重置该层的 LN 序号。"""
         self._block_idx += 1
         self._norm_idx = 0
         self._block = {"block_idx": self._block_idx, "block_in": x[0].detach().cpu().tolist()}
@@ -462,6 +483,7 @@ class TeachingTrace:
             print(f"  │   ┌── [TransformerBlock {self._block_idx}] 输入张量: (B={x.shape[0]}, T={x.shape[1]}, emb_dim={x.shape[2]})")
 
     def _on_layer_norm(self, **values):
+        """区分 Block 内 Pre-LN 与模型末端 LayerNorm，记录各自输出。"""
         if self._block is not None:
             self._norm_idx += 1
             key = f"norm{self._norm_idx}"
@@ -475,18 +497,21 @@ class TeachingTrace:
                             token_labels=self._labels, ln_name=name, indent=indent, record_dict=record)
 
     def _on_attention(self, **values):
+        """保存当前 Block 的 MHA 中间张量；模型级调用则记录到根快照。"""
         target = self._block if self._block is not None else self.record
         record = target["att"] = {}
         _inspect_attention(**values, verbose=self.verbose, show_data=self.show_data,
                            token_labels=self._labels, record_dict=record)
 
     def _on_feed_forward(self, **values):
+        """保存当前 Block 的 FFN 中间张量；模型级调用则记录到根快照。"""
         target = self._block if self._block is not None else self.record
         record = target["ffn"] = {}
         _inspect_feed_forward(**values, verbose=self.verbose, show_data=self.show_data,
                               token_labels=self._labels, record_dict=record)
 
     def _on_residual(self, name, shortcut, sublayer_out, out):
+        """并列展示并保存 Shortcut 与子层输出相加前后的首样本张量。"""
         if self.verbose:
             if name == "res1":
                 print(f"  │   │   ├── [残差连接 1 (Shortcut 1)] x = shortcut + att_out: 形状保持 {tuple(out.shape)}")
@@ -504,29 +529,34 @@ class TeachingTrace:
         }
 
     def _on_block_end(self):
+        """封存当前 Block 快照并清空活动 Block 游标。"""
         if self.verbose:
             print(f"  │   └── [TransformerBlock {self._block_idx} 计算完成]\n  │")
         self.record.setdefault("blocks", []).append(self._block)
         self._block = None
 
     def _on_blocks_end(self, num_blocks):
+        """标记主干完成，并开始输出预测阶段的讲解。"""
         if self.verbose:
             print(f"  └── [Transformer 主干网络全部 {num_blocks} 个 Blocks 执行完毕]\n  │")
             print(f"  ┌── [3. 输出预测阶段 (Final LayerNorm & Output Head)]")
 
     def _on_model_end(self, **values):
+        """记录最终归一化后的全序列 Logits 与词表概率。"""
         _inspect_output(**values, verbose=self.verbose, show_data=self.show_data,
                         token_labels=self._labels, record_dict=self.record["output_stage"])
         if self.verbose:
             print(f"  <<< GPTModel.forward end   | logits.shape={tuple(values['logits'].shape)}")
 
     def _on_generation_start(self, step, max_new_tokens, idx, idx_cond):
+        """开启自回归步记录；快照区分累计序列与本步实际上下文。"""
         if self.tokenizer is None:
             raise ValueError("TeachingTrace 的生成教学输出需要 tokenizer")
         self.record = _start_generation(self.tokenizer, step, max_new_tokens, idx, idx_cond, self.verbose)
         self._generating = True
 
     def _on_generation_end(self, step, logits_last, idx_next, idx):
+        """完成当前步的预测快照，按需归档后清除生成态标记。"""
         _finish_generation(self.tokenizer, step, logits_last, idx_next, idx, self.record, self.verbose)
         if self.steps_records is not None:
             self.steps_records.append(self.record)
@@ -535,7 +565,7 @@ class TeachingTrace:
 
 
 def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True, *, seed=None):
-    """统计并打印模型超参规格、精确参数量统计及全部关键权重矩阵数据，同时返回结构化字典"""
+    """从 PyTorch 模型统计参数量并打印配置；返回权重的脱图 CPU/Python 快照。"""
     vocab_sorted = sorted(tokenizer.str_to_int.items(), key=lambda x: x[1])
     vocab_labels = [f"ID={idx} ('{word}')" for word, idx in vocab_sorted]
     pos_labels = [f"Pos={i}" for i in range(cfg["context_length"])]
@@ -740,7 +770,7 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True, *, s
 
 
 def _max_abs_diff(left, right):
-    """比较嵌套数值列表；形状、非有限值或相反符号的无穷大不一致时返回 inf。"""
+    """比较嵌套数值快照的最大绝对误差；结构或非有限值不匹配时返回 inf。"""
     if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
         if len(left) != len(right):
             return math.inf
@@ -756,7 +786,10 @@ def _max_abs_diff(left, right):
 
 @torch.no_grad()
 def collect_same_token_example(model, tokenizer, text, positions=(2, 4)):
-    """对固定重复词输入单独前向，返回与生成步骤无关的完整教学快照。"""
+    """对固定输入单独前向，比较两个相同 Token 位置；此例独立于自回归生成。
+
+    建议使用 model.eval() 以关闭 Dropout 随机性；返回快照不保留计算图。
+    """
     token_ids = tokenizer.encode(text)
     if not token_ids or len(token_ids) > model.pos_emb.num_embeddings:
         raise ValueError("固定重复词输入必须非空，且长度不能超过模型上下文容量")
@@ -776,6 +809,7 @@ def collect_same_token_example(model, tokenizer, text, positions=(2, 4)):
     logits = record["output_stage"]["logits_all"]
 
     def prediction(position):
+        """取指定位置 Logits 的 Argmax，并转换为 Token ID 与可读文本。"""
         token_id = max(range(len(logits[position])), key=logits[position].__getitem__)
         return {"id": token_id, "token": tokenizer.int_to_str.get(token_id, "<|unk|>")}
 
@@ -801,7 +835,11 @@ def collect_same_token_example(model, tokenizer, text, positions=(2, 4)):
 
 
 def analyze_and_print_cross_step_insights(steps_records, same_token_example=None, *, tolerance=1e-6):
-    """验证同位置前缀，并独立讲解固定输入的同词异位；所有结论来自实际数据。"""
+    """比较前两步相同位置前缀的各阶段张量，并另行讲解固定输入中的同词异位。
+
+    KV Cache（Key-Value Cache）复用要求相同且位置对齐的前缀、eval 模式关闭
+    Dropout，并且所有已比张量的最大绝对误差不超过 tolerance。
+    """
     if not math.isfinite(tolerance) or tolerance < 0:
         raise ValueError("比较容差必须是非负有限数")
     checks = []

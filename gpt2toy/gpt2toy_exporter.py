@@ -4,6 +4,8 @@ GPT-2 Toy 双轨剖析导出器 (Dual-Track Dissection Exporter)
 生成：
   1. gpt2toy_dissection.md  —— 结构化图文 + 公式 + 完整矩阵对照 Markdown 深度剖析文档
   2. gpt2toy_inspector.html —— 零外部依赖的单文件交互式 HTML 观战面板
+
+本模块只把诊断快照渲染为报告，不执行模型计算；维度、预测与比较结果均取自传入 payload。
 """
 
 import os
@@ -12,6 +14,7 @@ import math
 
 
 def _f(val, p=4):
+    """以固定精度格式化数值，并为正负无穷显示明确标记。"""
     if val is None:
         return "None"
     if isinstance(val, float) and math.isinf(val):
@@ -20,10 +23,12 @@ def _f(val, p=4):
 
 
 def _vec_str(vec, p=4):
+    """将数值向量逐项格式化为报告中的紧凑表示。"""
     return "[" + ", ".join(_f(v, p) for v in vec) + "]"
 
 
 def _md_table(headers, rows, aligns=None):
+    """用给定列对齐方式拼接 Markdown 表格，并转义各单元格内容。"""
     if not aligns:
         aligns = ["left"] + ["right"] * (len(headers) - 1)
     sep_map = {"left": ":---", "center": ":---:", "right": "---:"}
@@ -37,16 +42,17 @@ def _md_table(headers, rows, aligns=None):
 
 
 def _md_cell(value):
-    """Keep payload text from changing Markdown table structure."""
+    """转义竖线并压平换行，避免 payload 文本破坏 Markdown 表格结构。"""
     return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def _md_text(value):
-    """Flatten dynamic prose while leaving visible token text unchanged."""
+    """压平动态说明中的换行，保留 Token 等可见文本本身。"""
     return str(value).replace("\n", " ")
 
 
 def generate_markdown_report(trace_data):
+    """将诊断 payload 渲染为 Markdown；动态读取维度、权重、生成步骤与预测结果。"""
     cfg = trace_data["config"]
     ps = trace_data["param_stats"]
     w = trace_data["weights"]
@@ -452,8 +458,14 @@ def generate_markdown_report(trace_data):
 
 
 def generate_html_inspector(trace_data):
+    """将实际诊断 payload 嵌入单文件交互页面；页面不重新运行模型。
+
+    维度和预测均从 payload 驱动；非有限浮点数先转成可解析标记，内联 JSON
+    再转义尖括号与 ampersand，避免内容意外闭合 script 元素。
+    """
     # 将 JSON 中可能出现的 -inf 转换为特殊字符串以便前端 JS 安全解析并渲染
     def _sanitize_for_json(obj):
+        """递归把 NaN/Infinity 转为 JSON 可表达的字符串，其余数据原样保留。"""
         if isinstance(obj, float):
             if math.isinf(obj):
                 return "-Infinity" if obj < 0 else "Infinity"
@@ -1540,6 +1552,7 @@ switchTab("step0");
 
 
 def export_dual_track_dissection(trace_data, output_dir):
+    """把同一份快照分别渲染并写入 Markdown 报告与 HTML 检视器，返回两个路径。"""
     md_path = os.path.join(output_dir, "gpt2toy_dissection.md")
     html_path = os.path.join(output_dir, "gpt2toy_inspector.html")
 

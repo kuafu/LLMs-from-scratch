@@ -73,16 +73,22 @@ W, H = 1860, 1510
 C = dict(bg='#020617', panel='#0b1426', text='#e2e8f0', muted='#a3b3c9',
          cyan='#22d3ee', green='#34d399', purple='#a78bfa', amber='#fbbf24', rose='#fb7185', gray='#64748b')
 lines = []
-def put(s): lines.append(s)
+def put(s):
+    """追加 SVG（Scalable Vector Graphics，可缩放矢量图形）标记，供最终组装图像。"""
+    lines.append(s)
 def text(x,y,s,size=18,color='text',weight=400,anchor='start',extra=''):
+    """绘制文本标签；转义内容，避免特殊字符破坏 SVG 的 XML 结构。"""
     put(f'<text x="{x}" y="{y}" font-size="{size}" fill="{C.get(color,color)}" font-weight="{weight}" text-anchor="{anchor}" {extra}>{escape(s)}</text>')
 def rect(x,y,w,h,stroke='gray',fill=None,dash=False,r=12):
+    """绘制可配置描边、填充和圆角的矩形，作为架构节点或背景面板。"""
     d=' stroke-dasharray="7 6"' if dash else ''
     put(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{fill or C["panel"]}" stroke="{C.get(stroke,stroke)}" stroke-width="1.4"{d}/>')
 def arrow(path,color='cyan',dash=False):
+    """绘制带箭头的连接线，用于表示前向数据流、残差旁路或自回归反馈。"""
     d=' stroke-dasharray="6 6"' if dash else ''
     put(f'<path d="{path}" fill="none" stroke="{C[color]}" stroke-width="2" marker-end="url(#{color})"{d}/>')
 def box(x,y,w,h,title,details=(),color='cyan',tip='',title_size=20):
+    """组合节点边框、标题、说明与悬浮提示，展示一个模型计算模块。"""
     put('<g class="node">')
     if tip: put(f'<title>{escape(tip)}</title>')
     rect(x,y,w,h,color)
@@ -90,6 +96,7 @@ def box(x,y,w,h,title,details=(),color='cyan',tip='',title_size=20):
     for i,s in enumerate(details): text(x+18,y+57+i*24,s,17,'muted')
     put('</g>')
 def section(x,y,w,h,num,title,sub,color):
+    """绘制总览、解码器块或注意力细节区域的分区标题和容器。"""
     rect(x,y,w,h,'#27374f',fill='#071020')
     text(x+22,y+34,num,17,color,700)
     text(x+58,y+34,title,23,'text',600)

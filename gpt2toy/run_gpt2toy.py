@@ -17,6 +17,7 @@ from gpt2toy_diagnostics import (
 )
 
 
+# 随机种子固定同一模型规格的初始化；调整参数形状后，不保证与旧模型权重相同。
 SEED = 123
 TOY_VOCAB = {
     "<|unk|>": 0,
@@ -35,12 +36,18 @@ TOY_CONFIG = {
     "drop_rate": 0.0,
     "qkv_bias": False,
 }
+# 生成输入与重复词探针分开，避免把随机生成的词误当作同词异位样本。
 START_CONTEXT = "Hello, I am"
 REPEATED_CONTEXT = "Hello, I am I"
 
 
 def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEXT,
          repeated_context=REPEATED_CONTEXT, max_new_tokens=2, seed=SEED):
+    """组织一次可复现的 GPT 教学实验，导出报告并返回完整 trace_data。
+
+    自回归生成与固定重复词探针使用同一个 eval 模型、分别执行前向传播；
+    记录的权重、张量、实际预测及比较结论共同组成 Markdown/HTML 的数据来源。
+    """
     out_dir = os.fspath(output_dir) if output_dir is not None else os.path.dirname(os.path.abspath(__file__))
     os.makedirs(out_dir, exist_ok=True)
 
@@ -131,7 +138,10 @@ def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEX
 
 
 def run(output_dir=None):
-    """默认输出到脚本目录；验证或独立实验可以指定其他目录。"""
+    """启动完整教学演示，把标准输出同时写入终端和 UTF-8 日志。
+
+    默认输出到脚本目录；验证或独立实验可指定其他目录，返回 main 的剖析数据。
+    """
     if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")

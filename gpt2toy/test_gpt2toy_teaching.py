@@ -25,12 +25,14 @@ from run_gpt2toy import (
 
 
 def make_default_model_and_tokenizer(seed=SEED):
+    """建立与教学入口一致的 eval 模型和微型分词器，便于独立数值验算。"""
     torch.manual_seed(seed)
     model = GPTModel(TOY_CONFIG).eval()
     return model, SimpleTokenizerV2(TOY_VOCAB)
 
 
 def embedded_trace(html):
+    """从 HTML 面板读取内嵌的剖析数据，检查导出过程是否保留真实模型信息。"""
     marker = "const TRACE = "
     start = html.index(marker) + len(marker)
     end = html.index(";\n", start)
@@ -38,7 +40,10 @@ def embedded_trace(html):
 
 
 class GPTToyTeachingTests(unittest.TestCase):
+    """验证教学入口、独立重复词探针、比较结论及 Markdown/HTML 导出。"""
+
     def test_default_run_exports_exact_console_and_independent_repeat_example(self):
+        """完整运行应生成正确容量的模型、独立探针和与终端一致的日志。"""
         with tempfile.TemporaryDirectory() as output_dir:
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
@@ -100,6 +105,7 @@ class GPTToyTeachingTests(unittest.TestCase):
         self.assertIn("t4[ID=4", html_payload["comparisons"]["same_token_diff_pos"]["token_labels"][4])
 
     def test_fixed_repeat_snapshot_matches_a_direct_quiet_forward_and_argmax_labels(self):
+        """固定重复词快照及 Argmax 预测必须来自该输入的真实前向计算。"""
         model, tokenizer = make_default_model_and_tokenizer()
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
@@ -123,6 +129,7 @@ class GPTToyTeachingTests(unittest.TestCase):
             self.assertEqual(example[field]["token"], tokenizer.int_to_str[token_id])
 
     def test_comparison_reports_verified_different_and_not_comparable_truthfully(self):
+        """数值超差、训练模式或窗口移位时，不得误报 KV Cache 前缀验证成功。"""
         with tempfile.TemporaryDirectory() as output_dir, contextlib.redirect_stdout(io.StringIO()):
             payload = main(output_dir)
         stdout = io.StringIO()
@@ -155,6 +162,7 @@ class GPTToyTeachingTests(unittest.TestCase):
         self.assertNotEqual(cropped["invariance"]["reason"], "")
 
     def test_alternate_configuration_drives_report_dimensions_and_parameter_labels(self):
+        """替换模型规格后，报告尺寸、参数量与内嵌数据应随实际配置变化。"""
         vocab = {**TOY_VOCAB, "extra": 6}
         config = {**TOY_CONFIG, "vocab_size": 7, "context_length": 6, "emb_dim": 6, "n_heads": 3}
         with tempfile.TemporaryDirectory() as output_dir:
@@ -191,6 +199,7 @@ class GPTToyTeachingTests(unittest.TestCase):
         self.assertEqual(len(html_payload["weights"]["pos_emb_weight"][0]), 6)
 
     def test_invalid_repeat_positions_and_nonmatching_tokens_raise(self):
+        """同词异位探针拒绝越界、负索引和两个 Token ID 不同的位置。"""
         model, tokenizer = make_default_model_and_tokenizer()
         with self.assertRaises(ValueError):
             collect_same_token_example(model, tokenizer, "Hello I", positions=(2, 4))

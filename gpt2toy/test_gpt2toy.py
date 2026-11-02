@@ -12,6 +12,7 @@ from gpt2toy_diagnostics import TeachingTrace
 
 
 def make_model(*, n_layers=2, drop_rate=0.0, context_length=8, n_heads=2, emb_dim=8):
+    """构建固定随机种子的微型模型，供形状、因果性及梯度对照测试使用。"""
     torch.manual_seed(41)
     return GPTModel({
         "vocab_size": 12,
@@ -25,6 +26,7 @@ def make_model(*, n_layers=2, drop_rate=0.0, context_length=8, n_heads=2, emb_di
 
 
 def contains_tensor(value):
+    """递归检查快照是否残留 Tensor，防止长期保留计算图或可变张量引用。"""
     if isinstance(value, torch.Tensor):
         return True
     if isinstance(value, dict):
@@ -35,7 +37,10 @@ def contains_tensor(value):
 
 
 class GPTToyRegressionTests(unittest.TestCase):
+    """验证 GPT 张量路径、因果约束、自回归生成及可选 trace 的非干扰性。"""
+
     def test_untraced_forward_and_batched_generation_are_silent_and_stay_on_tensor_path(self):
+        """不启用 trace 时，推理应保持静默且不做 CPU 复制或列表转换。"""
         model = make_model().eval()
         ids = torch.tensor([[1, 2, 3], [4, 5, 6]])
         stdout = io.StringIO()
@@ -53,6 +58,7 @@ class GPTToyRegressionTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
 
     def test_training_trace_preserves_dropout_outputs_gradients_and_rng(self):
+        """启用观测不应改变 Dropout 的随机数序列、前向结果或反向传播梯度。"""
         plain = make_model(drop_rate=0.25).train()
         traced = copy.deepcopy(plain).train()
         ids = torch.tensor([[1, 2, 3, 4], [4, 3, 2, 1]])
@@ -79,6 +85,7 @@ class GPTToyRegressionTests(unittest.TestCase):
         self.assertFalse(contains_tensor(trace.record))
 
     def test_reused_trace_resets_and_keeps_old_python_snapshots(self):
+        """顺序复用观测器时清空当前记录，同时保持旧快照的数值独立性。"""
         first_ids = torch.tensor([[1, 2, 3]])
         second_ids = torch.tensor([[7, 8, 9]])
         for n_layers in (0, 2):
@@ -105,6 +112,7 @@ class GPTToyRegressionTests(unittest.TestCase):
                 self.assertFalse(contains_tensor(trace.record))
 
     def test_causal_prefix_outputs_do_not_depend_on_later_tokens(self):
+        """相同位置的历史前缀不得读取未来 Token，验证因果自注意力约束。"""
         model = make_model(n_layers=2, context_length=6).eval()
         full = torch.tensor([[1, 2, 3, 4, 5]])
         with torch.no_grad():
@@ -117,6 +125,7 @@ class GPTToyRegressionTests(unittest.TestCase):
         self.assertEqual(trace.record["embeddings"]["pos_indices"], [0, 1, 2, 3, 4])
 
     def test_verbose_trace_displays_all_configured_attention_heads(self):
+        """单头和多头配置都应完整显示实际注意力头，不能固定读取第二个头。"""
         ids = torch.tensor([[1, 2, 3]])
         for n_heads in (1, 3):
             with self.subTest(n_heads=n_heads):
@@ -135,6 +144,7 @@ class GPTToyRegressionTests(unittest.TestCase):
                     self.assertNotIn("Head1=", display)
 
     def test_batched_generation_crops_context_and_zero_tokens_preserve_prompt(self):
+        """验证整个 batch 的贪婪生成、滑动窗口裁剪及零步生成边界。"""
         model = make_model().eval()
         prompt = torch.tensor([[1, 2], [7, 8]])
         observed_contexts = []
@@ -170,6 +180,7 @@ class GPTToyRegressionTests(unittest.TestCase):
         self.assertEqual(no_step_events, [])
 
     def test_tokenizer_unknown_punctuation_and_sliding_window_shift(self):
+        """验证未知词/标点映射，以及 CLM（Causal Language Modeling）目标右移一位。"""
         vocab = {
             "<|unk|>": 0, "a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6,
             ",": 7, "!": 8,
