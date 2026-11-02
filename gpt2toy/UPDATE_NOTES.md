@@ -122,10 +122,11 @@ attention = trace.record["blocks"][0]["att"]
 教学快照记录首个 batch 样本，`verbose` 控制打印，`show_data` 控制详细数值展示。
 生成过程的教学打印还需传入 `tokenizer`，完整示例见 `run_gpt2toy.py`。
 
-启用教学打印时，`GPTModel`、`TransformerBlock`、`MultiHeadAttention`、`LayerNorm`
-和 `FeedForward` 的 `forward` 都打印 `begin/end` 与输入/输出形状。标记按实际调用
-深度每层缩进 4 个空格：Block 内的 LN/MHA/FFN 是同级调用，最终 LN 则是 GPTModel
-的直接子调用。独立调用这些模块时从根层级开始，同一观测器可顺序复用。
+启用教学打印时，`GPTModel`、`TransformerBlock`、`MultiHeadAttention`、`LayerNorm`、
+`FeedForward` 和 `GELU` 的 `forward` 都打印 `begin/end` 与输入/输出形状。标记按实际调用
+深度每层缩进 4 个空格：Block 内的 LN/MHA/FFN 是同级调用，GELU 是 FFN 的子调用，
+其输入形状为升维后的 `[B,T,4D]`；最终 LN 则是 GPTModel 的直接子调用。
+独立调用这些模块时从根层级开始，同一观测器可顺序复用。
 
 原来的 `verbose`、`show_data` 和 `record_dict` 模型参数已由可选 `trace` 替代。
 自定义回调遵循 `trace(event, **values)`，同步只读观察张量；不要修改张量或消耗随机数。

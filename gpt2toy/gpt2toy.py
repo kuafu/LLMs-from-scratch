@@ -115,12 +115,17 @@ class GELU(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, x):
+    def forward(self, x, trace=None):
         """用 tanh 近似标准正态累积分布函数 Phi，逐元素计算 x * Phi(x)。"""
-        return 0.5 * x * (1 + torch.tanh(
+        if trace is not None:
+            trace("gelu_start", x=x)
+        out = 0.5 * x * (1 + torch.tanh(
             torch.sqrt(torch.tensor(2.0 / torch.pi)) *
             (x + 0.044715 * torch.pow(x, 3))
         ))
+        if trace is not None:
+            trace("gelu", out=out)
+        return out
 
 
 class FeedForward(nn.Module):
@@ -144,7 +149,7 @@ class FeedForward(nn.Module):
         if trace is not None:
             trace("feed_forward_start", x=x)
         h1 = self.layers[0](x)
-        h2 = self.layers[1](h1)
+        h2 = self.layers[1](h1, trace=trace)
         out = self.layers[2](h2)
         if trace is not None:
             trace("feed_forward", x=x, h1=h1, h2=h2, out=out)

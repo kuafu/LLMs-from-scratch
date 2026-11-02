@@ -541,6 +541,14 @@ class TeachingTrace:
         """进入逐位置 FFN 的 forward，开始该子层的打印范围。"""
         self._begin_forward("FeedForward", x)
 
+    def _on_gelu_start(self, x):
+        """进入 GELU 激活；在 FFN 内调用时，其输入是升维后的隐藏特征。"""
+        self._begin_forward("GELU", x)
+
+    def _on_gelu(self, out):
+        """关闭 GELU 的打印层级；激活结果仍由所属 FFN 的快照统一记录。"""
+        self._end_forward("GELU", out)
+
     def _on_feed_forward(self, **values):
         """保存当前 Block 的 FFN 中间张量；模型级调用则记录到根快照。"""
         target = self._block if self._block is not None else self.record

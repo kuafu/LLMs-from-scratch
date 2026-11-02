@@ -8,6 +8,7 @@ import torch
 
 from gpt2toy import (
     FeedForward,
+    GELU,
     GPTModel,
     LayerNorm,
     MultiHeadAttention,
@@ -48,7 +49,7 @@ class GPTToyRegressionTests(unittest.TestCase):
 
     def _assert_forward_boundaries(self, module, inputs, trace):
         """用 PyTorch 实际调用的前后钩子核对日志顺序、嵌套深度和真实张量形状。"""
-        watched = (GPTModel, TransformerBlock, MultiHeadAttention, LayerNorm, FeedForward)
+        watched = (GPTModel, TransformerBlock, MultiHeadAttention, LayerNorm, FeedForward, GELU)
         calls, active, handles = [], [], []
 
         def entering(current, args):
@@ -95,10 +96,10 @@ class GPTToyRegressionTests(unittest.TestCase):
                     self._assert_forward_boundaries(model, inputs, trace)
 
     def test_standalone_forward_markers_start_at_root_when_trace_is_reused(self):
-        """四类子模块可独立调用，顺序复用观测器时重新建立根层级和输入标签。"""
+        """子模块及 GELU 可独立调用，顺序复用观测器时重新建立根层级和输入标签。"""
         block = make_model(n_layers=1).eval().trf_blocks[0]
         trace = TeachingTrace(verbose=True, show_data=True)
-        for module, length in ((block, 2), (block, 5), (block.att, 3), (block.norm1, 4), (block.ff, 2)):
+        for module, length in ((block, 2), (block, 5), (block.att, 3), (block.norm1, 4), (block.ff, 2), (block.ff.layers[1], 3)):
             with self.subTest(module=type(module).__name__, length=length):
                 inputs = torch.arange(2 * length * 8, dtype=torch.float32).view(2, length, 8) / 10
                 self._assert_forward_boundaries(module, inputs, trace)
