@@ -126,7 +126,11 @@ attention = trace.record["blocks"][0]["att"]
 `FeedForward` 和 `GELU` 的 `forward` 都打印 `begin/end` 与输入/输出形状。标记按实际调用
 深度每层缩进 4 个空格：Block 内的 LN/MHA/FFN 是同级调用，GELU 是 FFN 的子调用，
 其输入形状为升维后的 `[B,T,4D]`；最终 LN 则是 GPTModel 的直接子调用。
-独立调用这些模块时从根层级开始，同一观测器可顺序复用。
+FFN 的两层原生 `nn.Linear` 也打印调用边界，分别标为 `nn.Linear[升维]` 和
+`nn.Linear[降维]`，与 GELU 同级缩进，依次展示 `[B,T,D] -> [B,T,4D]` 和
+`[B,T,4D] -> [B,T,D]` 的实际形状变化。
+独立调用上述自定义模块时从根层级开始，同一观测器可顺序复用；
+原生 Linear 的边界标记由 FeedForward 的调用处发出。
 
 原来的 `verbose`、`show_data` 和 `record_dict` 模型参数已由可选 `trace` 替代。
 自定义回调遵循 `trace(event, **values)`，同步只读观察张量；不要修改张量或消耗随机数。

@@ -541,6 +541,16 @@ class TeachingTrace:
         """进入逐位置 FFN 的 forward，开始该子层的打印范围。"""
         self._begin_forward("FeedForward", x)
 
+    def _on_feed_forward_linear_start(self, layer_idx, x):
+        """标记 FFN 原生 Linear 的入口，按层索引区分升维与降维两个子调用。"""
+        role = {0: "升维", 2: "降维"}[layer_idx]
+        self._begin_forward(f"nn.Linear[{role}]", x)
+
+    def _on_feed_forward_linear_end(self, layer_idx, out):
+        """按同一层索引关闭 Linear 子调用，并显示该层真实输出形状。"""
+        role = {0: "升维", 2: "降维"}[layer_idx]
+        self._end_forward(f"nn.Linear[{role}]", out)
+
     def _on_gelu_start(self, x):
         """进入 GELU 激活；在 FFN 内调用时，其输入是升维后的隐藏特征。"""
         self._begin_forward("GELU", x)

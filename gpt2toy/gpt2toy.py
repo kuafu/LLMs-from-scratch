@@ -148,10 +148,16 @@ class FeedForward(nn.Module):
         """独立变换每个 Token 的特征，保留 [B,T,D] 的输入输出形状。"""
         if trace is not None:
             trace("feed_forward_start", x=x)
+            trace("feed_forward_linear_start", layer_idx=0, x=x)
         h1 = self.layers[0](x)
+        if trace is not None:
+            trace("feed_forward_linear_end", layer_idx=0, out=h1)
         h2 = self.layers[1](h1, trace=trace)
+        if trace is not None:
+            trace("feed_forward_linear_start", layer_idx=2, x=h2)
         out = self.layers[2](h2)
         if trace is not None:
+            trace("feed_forward_linear_end", layer_idx=2, out=out)
             trace("feed_forward", x=x, h1=h1, h2=h2, out=out)
         return out
 

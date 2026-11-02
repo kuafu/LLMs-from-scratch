@@ -273,8 +273,12 @@
   │   │   │     t3[ID=5:'am']    | μ= 0.2018, σ²= 2.0327, std= 1.4257 -> norm_out=[ 0.6368, -1.4342,  1.1796, -0.3823] (验证: μ'=-0.0000, σ'²=1.0000)
           <<< LayerNorm.forward end   | out.shape=(1, 4, 4)
           >>> FeedForward.forward begin | x.shape=(1, 4, 4)
+              >>> nn.Linear[升维].forward begin | x.shape=(1, 4, 4)
+              <<< nn.Linear[升维].forward end   | out.shape=(1, 4, 16)
               >>> GELU.forward begin | x.shape=(1, 4, 16)
               <<< GELU.forward end   | out.shape=(1, 4, 16)
+              >>> nn.Linear[降维].forward begin | x.shape=(1, 4, 16)
+              <<< nn.Linear[降维].forward end   | out.shape=(1, 4, 4)
   │   │   ├── [FFN 子层: 逐位置前馈网络 (Feed-Forward Network)]
   │   │   │   ├── 1. 升维投影 Linear(4 -> 16): (1, 4, 4) -> (1, 4, 16)
   │   │   │   │        t0[ID=2:'Hello'] [00..07]: [-0.2756, -0.0006, -0.5527, -1.0006, -0.3687, -0.5285,  1.1999,  0.2515]
@@ -488,8 +492,12 @@
   │   │   │     t4[ID=1:'<|endoftext|>'] | μ= 0.4099, σ²= 0.8307, std= 0.9114 -> norm_out=[ 0.6562,  1.1247, -1.4899, -0.2911] (验证: μ'=0.0000, σ'²=1.0000)
           <<< LayerNorm.forward end   | out.shape=(1, 5, 4)
           >>> FeedForward.forward begin | x.shape=(1, 5, 4)
+              >>> nn.Linear[升维].forward begin | x.shape=(1, 5, 4)
+              <<< nn.Linear[升维].forward end   | out.shape=(1, 5, 16)
               >>> GELU.forward begin | x.shape=(1, 5, 16)
               <<< GELU.forward end   | out.shape=(1, 5, 16)
+              >>> nn.Linear[降维].forward begin | x.shape=(1, 5, 16)
+              <<< nn.Linear[降维].forward end   | out.shape=(1, 5, 4)
   │   │   ├── [FFN 子层: 逐位置前馈网络 (Feed-Forward Network)]
   │   │   │   ├── 1. 升维投影 Linear(4 -> 16): (1, 5, 4) -> (1, 5, 16)
   │   │   │   │        t0[ID=2:'Hello']         [00..07]: [-0.2756, -0.0006, -0.5527, -1.0006, -0.3687, -0.5285,  1.1999,  0.2515]

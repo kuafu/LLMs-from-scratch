@@ -50,20 +50,27 @@ class GPTToyRegressionTests(unittest.TestCase):
     def _assert_forward_boundaries(self, module, inputs, trace):
         """用 PyTorch 实际调用的前后钩子核对日志顺序、嵌套深度和真实张量形状。"""
         watched = (GPTModel, TransformerBlock, MultiHeadAttention, LayerNorm, FeedForward, GELU)
+        linear_names = {}
+        for child in module.modules():
+            if isinstance(child, FeedForward):
+                linear_names[child.layers[0]] = "nn.Linear[升维]"
+                linear_names[child.layers[2]] = "nn.Linear[降维]"
         calls, active, handles = [], [], []
 
         def entering(current, args):
-            calls.append(("begin", type(current).__name__, len(active), tuple(args[0].shape)))
+            name = linear_names.get(current, type(current).__name__)
+            calls.append(("begin", name, len(active), tuple(args[0].shape)))
             active.append(current)
 
         def leaving(current, args, output):
             self.assertIs(active.pop(), current)
-            calls.append(("end", type(current).__name__, len(active), tuple(output.shape)))
+            name = linear_names.get(current, type(current).__name__)
+            calls.append(("end", name, len(active), tuple(output.shape)))
 
         with torch.no_grad():
             expected = module(inputs)
         for child in module.modules():
-            if isinstance(child, watched):
+            if isinstance(child, watched) or child in linear_names:
                 handles.append(child.register_forward_pre_hook(entering))
                 handles.append(child.register_forward_hook(leaving))
         stdout = io.StringIO()
