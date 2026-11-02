@@ -10,11 +10,13 @@
 #      (d) 残差连接 (Shortcut) 前后增量三列对照 (shortcut + sublayer_out = x_updated)
 #      (e) 跨步因果不变性 (Step 1 vs Step 2 -> 揭示 KV Cache 原理) 与同词异位 (t2 vs t4 的 'I') 深度对比
 #   3. 双轨自动导出：运行本脚本自动生成完整 Markdown 剖析报告 (gpt2toy_dissection.md) 与交互式 HTML 观战面板 (gpt2toy_inspector.html)
+#   4. 终端打印同步保存到脚本目录下的 UTF-8 文本文件 gpt2toy.txt，每次运行覆盖。
 
 import os
 import re
 import sys
 import math
+from contextlib import redirect_stdout
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -25,6 +27,22 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
+
+
+class _TeeWriter:
+    """将同一份输出同时写入终端和文本文件。"""
+
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, text):
+        for stream in self._streams:
+            stream.write(text)
+        return len(text)
+
+    def flush(self):
+        for stream in self._streams:
+            stream.flush()
 
 
 #####################################
@@ -1073,4 +1091,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gpt2toy.txt")
+    with open(output_path, "w", encoding="utf-8", buffering=1) as output_file:
+        with redirect_stdout(_TeeWriter(sys.stdout, output_file)):
+            main()
