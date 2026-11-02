@@ -37,6 +37,8 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, x, trace=None):
         """执行 Q/K/V 投影、分头、因果注意力与多头合并，可选 trace 观察实际张量。"""
+        if trace is not None:
+            trace("attention_start", x=x)
         b, num_tokens, _ = x.shape
         # 线性投影（Linear Projection）：Q 用于发起查询，K 用于匹配，V 提供聚合内容。
         keys_merged = self.W_key(x)
@@ -91,6 +93,8 @@ class LayerNorm(nn.Module):
 
     def forward(self, x, trace=None):
         """归一化 [B,T,D] 的 D 维；使用总体方差，不在 Batch 或时间维上混合统计量。"""
+        if trace is not None:
+            trace("layer_norm_start", x=x)
         # 每个 Token 独立地沿嵌入维度归一化，使用有偏方差。
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, keepdim=True, unbiased=False)
@@ -137,6 +141,8 @@ class FeedForward(nn.Module):
 
     def forward(self, x, trace=None):
         """独立变换每个 Token 的特征，保留 [B,T,D] 的输入输出形状。"""
+        if trace is not None:
+            trace("feed_forward_start", x=x)
         h1 = self.layers[0](x)
         h2 = self.layers[1](h1)
         out = self.layers[2](h2)
@@ -185,7 +191,7 @@ class TransformerBlock(nn.Module):
         x_out = shortcut2 + ff_out
         if trace is not None:
             trace("residual", name="res2", shortcut=shortcut2, sublayer_out=ff_out, out=x_out)
-            trace("block_end")
+            trace("block_end", out=x_out)
         return x_out
 
 

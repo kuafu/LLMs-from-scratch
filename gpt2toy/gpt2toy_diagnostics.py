@@ -420,6 +420,7 @@ class TeachingTrace:
 
     回调只观察已计算张量，不改写模型、输入或随机状态；快照脱离计算图。
     ``record`` 保存最近一次 forward，生成时可把每步快照追加到 ``steps_records``。
+    begin/end 标记按实际 forward 调用深度缩进；只有 verbose=True 时打印。
     同一个实例供一次顺序执行使用，不用于并发调用。
     """
 
@@ -435,16 +436,38 @@ class TeachingTrace:
         self._block_idx = -1
         self._norm_idx = 0
         self._generating = False
+        self._forward_stack = []
 
     @torch.no_grad()
     def __call__(self, event, **values):
         """同步分派只读事件处理器；回调内的辅助计算不构建 autograd 图。"""
         getattr(self, "_on_" + event)(**values)
 
+    def _begin_forward(self, name, tensor, *, input_name="x"):
+        """记录活动方法名并按调用深度打印入口；栈中不保存张量或计算图。"""
+        if not self._forward_stack and name != "GPTModel":
+            # 子模块也可独立观测；新的根调用不继承上次样本的标签和 Block 游标。
+            self.record = {}
+            self._labels = None
+            self._block = None
+            self._block_idx = -1
+            self._norm_idx = 0
+        if self.verbose:
+            indent = "  " + "    " * len(self._forward_stack)
+            print(f"{indent}>>> {name}.forward begin | {input_name}.shape={tuple(tensor.shape)}")
+        self._forward_stack.append(name)
+
+    def _end_forward(self, name, tensor, *, output_name="out"):
+        """在正常返回时关闭当前方法层级，并以同样的缩进打印实际输出形状。"""
+        self._forward_stack.pop()
+        if self.verbose:
+            indent = "  " + "    " * len(self._forward_stack)
+            print(f"{indent}<<< {name}.forward end   | {output_name}.shape={tuple(tensor.shape)}")
+
     def _on_model_start(self, in_idx, training=False):
         """开始一次模型前向记录，按 batch[0] 输入建立 Token 标签与阶段容器。"""
-        if self.verbose:
-            print(f"  >>> GPTModel.forward begin | in_idx.shape={tuple(in_idx.shape)}")
+        self._forward_stack = []
+        self._begin_forward("GPTModel", in_idx, input_name="in_idx")
         if not self._generating:
             self.record = {}
         self.record["training"] = training
@@ -474,6 +497,7 @@ class TeachingTrace:
 
     def _on_block_start(self, x):
         """为当前 Block 建立快照，并重置该层的 LN 序号。"""
+        self._begin_forward("TransformerBlock", x)
         self._block_idx += 1
         self._norm_idx = 0
         self._block = {"block_idx": self._block_idx, "block_in": x[0].detach().cpu().tolist()}
@@ -481,6 +505,10 @@ class TeachingTrace:
             self._labels = [f"t{i}" for i in range(x.shape[1])]
         if self.verbose:
             print(f"  │   ┌── [TransformerBlock {self._block_idx}] 输入张量: (B={x.shape[0]}, T={x.shape[1]}, emb_dim={x.shape[2]})")
+
+    def _on_layer_norm_start(self, x):
+        """进入 LayerNorm.forward，按其实际父调用确定缩进。"""
+        self._begin_forward("LayerNorm", x)
 
     def _on_layer_norm(self, **values):
         """区分 Block 内 Pre-LN 与模型末端 LayerNorm，记录各自输出。"""
@@ -495,6 +523,11 @@ class TeachingTrace:
             record = self.record.setdefault("output_stage", {})["final_norm"] = {}
         _inspect_layer_norm(**values, verbose=self.verbose, show_data=self.show_data,
                             token_labels=self._labels, ln_name=name, indent=indent, record_dict=record)
+        self._end_forward("LayerNorm", values["out"])
+
+    def _on_attention_start(self, x):
+        """进入 MultiHeadAttention.forward，保持其与 LayerNorm/FFN 的同级关系。"""
+        self._begin_forward("MultiHeadAttention", x)
 
     def _on_attention(self, **values):
         """保存当前 Block 的 MHA 中间张量；模型级调用则记录到根快照。"""
@@ -502,6 +535,11 @@ class TeachingTrace:
         record = target["att"] = {}
         _inspect_attention(**values, verbose=self.verbose, show_data=self.show_data,
                            token_labels=self._labels, record_dict=record)
+        self._end_forward("MultiHeadAttention", values["out"])
+
+    def _on_feed_forward_start(self, x):
+        """进入逐位置 FFN 的 forward，开始该子层的打印范围。"""
+        self._begin_forward("FeedForward", x)
 
     def _on_feed_forward(self, **values):
         """保存当前 Block 的 FFN 中间张量；模型级调用则记录到根快照。"""
@@ -509,6 +547,7 @@ class TeachingTrace:
         record = target["ffn"] = {}
         _inspect_feed_forward(**values, verbose=self.verbose, show_data=self.show_data,
                               token_labels=self._labels, record_dict=record)
+        self._end_forward("FeedForward", values["out"])
 
     def _on_residual(self, name, shortcut, sublayer_out, out):
         """并列展示并保存 Shortcut 与子层输出相加前后的首样本张量。"""
@@ -528,12 +567,13 @@ class TeachingTrace:
             "out": out[0].detach().cpu().tolist(),
         }
 
-    def _on_block_end(self):
+    def _on_block_end(self, out):
         """封存当前 Block 快照并清空活动 Block 游标。"""
         if self.verbose:
             print(f"  │   └── [TransformerBlock {self._block_idx} 计算完成]\n  │")
         self.record.setdefault("blocks", []).append(self._block)
         self._block = None
+        self._end_forward("TransformerBlock", out)
 
     def _on_blocks_end(self, num_blocks):
         """标记主干完成，并开始输出预测阶段的讲解。"""
@@ -545,8 +585,7 @@ class TeachingTrace:
         """记录最终归一化后的全序列 Logits 与词表概率。"""
         _inspect_output(**values, verbose=self.verbose, show_data=self.show_data,
                         token_labels=self._labels, record_dict=self.record["output_stage"])
-        if self.verbose:
-            print(f"  <<< GPTModel.forward end   | logits.shape={tuple(values['logits'].shape)}")
+        self._end_forward("GPTModel", values["logits"], output_name="logits")
 
     def _on_generation_start(self, step, max_new_tokens, idx, idx_cond):
         """开启自回归步记录；快照区分累计序列与本步实际上下文。"""

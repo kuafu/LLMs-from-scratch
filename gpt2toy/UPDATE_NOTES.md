@@ -122,6 +122,11 @@ attention = trace.record["blocks"][0]["att"]
 教学快照记录首个 batch 样本，`verbose` 控制打印，`show_data` 控制详细数值展示。
 生成过程的教学打印还需传入 `tokenizer`，完整示例见 `run_gpt2toy.py`。
 
+启用教学打印时，`GPTModel`、`TransformerBlock`、`MultiHeadAttention`、`LayerNorm`
+和 `FeedForward` 的 `forward` 都打印 `begin/end` 与输入/输出形状。标记按实际调用
+深度每层缩进 4 个空格：Block 内的 LN/MHA/FFN 是同级调用，最终 LN 则是 GPTModel
+的直接子调用。独立调用这些模块时从根层级开始，同一观测器可顺序复用。
+
 原来的 `verbose`、`show_data` 和 `record_dict` 模型参数已由可选 `trace` 替代。
 自定义回调遵循 `trace(event, **values)`，同步只读观察张量；不要修改张量或消耗随机数。
 同一个 `TeachingTrace` 可顺序复用；并发执行应分别创建实例。
@@ -140,8 +145,9 @@ python -B -m unittest test_gpt2toy test_gpt2toy_teaching -v
 
 当前 v3.1 已完成以下 CPU 验证：
 
-- 12 项回归测试通过；包含关闭 trace 的静默张量路径、Dropout 训练的输出与梯度一致性、
+- 14 项回归测试通过；包含关闭 trace 的静默张量路径、Dropout 训练的输出与梯度一致性、
   固定重复词样本的独立前向、比较成功 / 失败 / 不可比较，以及另一组模型尺寸的报告。
+  新增用实际模块调用顺序核对 begin/end 嵌套、缩进、形状和独立子模块调用的测试。
 - 在相同的长度 5 配置和权重下，对照改动前的核心实现，eval 与带 Dropout 的训练场景中，
   logits、全部参数梯度和随机数状态完全一致。默认模型容量变化导致的新初始化结果单独记录。
 - 在实际 Chromium 浏览器中验证了默认配置、另一组尺寸、多步裁剪、单步、零步及比较失败共六种报告；
