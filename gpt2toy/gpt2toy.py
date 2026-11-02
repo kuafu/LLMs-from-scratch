@@ -159,7 +159,7 @@ class GPTModel(nn.Module):
     def forward(self, in_idx, trace=None):
         _, seq_len = in_idx.shape
         if trace is not None:
-            trace("model_start", in_idx=in_idx)
+            trace("model_start", in_idx=in_idx, training=self.training)
 
         tok_embeds = self.tok_emb(in_idx)
         pos_indices = torch.arange(seq_len, device=in_idx.device)

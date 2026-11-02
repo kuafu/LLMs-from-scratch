@@ -1,6 +1,6 @@
 # GPT-2 Toy 全链路深度剖析套件更新说明 (Release Notes)
 
-> **版本**：v3.0 (核心算法与教学诊断分离)
+> **版本**：v3.1 (默认上下文长度调整为 5)
 >
 > **更新日期**：2026-11-02
 >
@@ -30,10 +30,10 @@
 | 序号 | 细化维度 | 具体实现与更新点 | 对应代码与文档体现 |
 | :---: | :--- | :--- | :--- |
 | **1** | **嵌入查表与广播相加透明化** | 将词嵌入查表 `tok_emb[ID]` 与位置嵌入查表 `pos_emb[Pos]` 并排展示，逐元素写出 `tok[d] + pos[d] = x[d]` 的相加映射。 | 终端日志第 1 阶段、Markdown 第 4.1/5.1 节、HTML 阶段一 |
-| **2** | **LayerNorm 内部统计量白盒化** | 显式计算并打印每个 Token 的 4 维均值 $\mu$、有偏方差 $\sigma^2$、标准差 $\sqrt{\sigma^2 + 10^{-5}}$，并验证标准化输出满足 $\mu' = 0.0000$ 与 $\sigma'^2 = 1.0000$。 | `LayerNorm.forward`、Markdown 第 4.2/5.2 节、HTML 阶段二 |
+| **2** | **LayerNorm 内部统计量白盒化** | 展示每个 Token 沿特征维计算的均值 $\mu$、有偏方差 $\sigma^2$、标准差及仿射变换后输出的实测均值与方差；不把学习后的输出统计量预设为 0 和 1。 | `LayerNorm.forward`、Markdown 第 4.2/5.2 节、HTML 阶段二 |
 | **3** | **多头注意力 (MHA) 全链路显微镜** | ① **切头前后对比**：展示线性层输出的完整 4 维 $Q,K,V$ 与划分到 Head 0 / Head 1 的 $2\times 2$ 空间关系；<br/>② **得分四步演化**：同屏并排展示 `原始点积 (Q@K^T)` $\to$ `缩放得分 (/√2)` $\to$ `因果掩码遮蔽 (-inf)` $\to$ `Softmax权重`；<br/>③ **上下文聚合**：展示各头加权求和、左右拼接及 `out_proj` 投影。 | `MultiHeadAttention.forward`、Markdown 第 4.3/5.3 节、HTML 阶段三 |
 | **4** | **残差连接 (Shortcut) 三列增量对照** | 将残差连接展示为 `shortcut (主干输入)` + `sublayer_out (MHA/FFN输出)` = `x_updated (融合输出)`，看清每个模块对特征向量的微调增量。 | `print_residual_comparison`、Markdown 第 4.4/5.4 节、HTML 阶段四/五 |
-| **5** | **跨步因果不变性与同词异位深度对比** | ① **KV Cache 原理实证**：实测验证 Step 1 ($T=4$) 与 Step 2 ($T=5$) 前 4 个位置的 15 组张量最大误差恒为 `0.00000000`，证明因果掩码对历史信息的隔离；<br/>② **同词异位对比**：比对 Step 2 中同为 `'I' (ID=4)` 的 $t_2$ 与 $t_4$，展示位置编码与因果视野如何促使模型做出不同的后继词预测。 | `analyze_and_print_cross_step_insights`、Markdown 第 6 节、HTML 跨步对比 Tab |
+| **5** | **跨步因果前缀与同词异位对照** | Step 1 ($T=4$) 与 Step 2 ($T=5$) 只在模型处于 eval 模式、输入前缀与位置对齐时比较共同位置；最大绝对误差不超过 `1e-6` 标为 `verified`，超过则标为 `different`。若窗口裁剪导致 token 或位置改变，标为 `not_comparable`，不把错位结果解释成因果差异。独立输入 `Hello, I am I` 的 IDs 为 `[2, 3, 4, 5, 4]`，其中 `I` 位于位置 2 和 4。当前实测两处 logits 不同、argmax 却都为 `am` (ID 5)；分数变化不一定改变预测词，所有结论以本次张量为准。 | `analyze_and_print_cross_step_insights`、Markdown 第 6 节、HTML 跨步对比 Tab |
 
 ---
 
@@ -43,7 +43,7 @@
 
 #### 轨道一：Markdown 深度剖析报告 ([gpt2toy_dissection.md](gpt2toy_dissection.md))
 * **架构演化流**：内嵌完整的 Mermaid 流程拓扑图，标明各节点形状变化；
-* **参数与权重台账**：详细拆解 312 个可学习参数，提供初始权重完整表格（包含可折叠展开的 FFN 权重）；
+* **参数与权重台账**：参数数量和权重表从本次模型实例采集；当前默认配置有 308 个可学习参数，位置嵌入为 `[5, 4]`；
 * **数学与表格对照**：全量配备 LaTeX 数学定义与实际 PyTorch 张量运行结果；
 * **离线归档友好**：非常适合在 VS Code、Obsidian、GitHub 中作为技术笔记沉淀。
 
@@ -68,6 +68,7 @@ gpt2toy/
 ├── gpt2toy_exporter.py     # 将运行时快照转换为 Markdown 与 HTML
 ├── run_gpt2toy.py          # 完整演示入口：词表、配置、运行与输出文件
 ├── test_gpt2toy.py         # 核心算法与诊断隔离的回归测试
+├── test_gpt2toy_teaching.py # 上下文配置、固定重复词输入、比较结论与导出测试
 ├── gpt2toy.txt             # [产物] UTF-8 终端日志
 ├── gpt2toy_dissection.md   # [产物] Markdown 深度剖析报告
 ├── gpt2toy_inspector.html  # [产物] 单文件交互式观战面板
@@ -96,14 +97,19 @@ import torch
 from gpt2toy import GPTModel, generate_text_simple
 from gpt2toy_diagnostics import TeachingTrace
 
-cfg = dict(vocab_size=6, context_length=6, emb_dim=4,
-           n_heads=2, n_layers=1, drop_rate=0.0, qkv_bias=False)
-torch.manual_seed(123)
-model = GPTModel(cfg).eval()
-ids = torch.tensor([[2, 3, 4, 5]])
+from run_gpt2toy import REPEATED_CONTEXT, SEED, START_CONTEXT, TOY_CONFIG, TOY_VOCAB
+from gpt2toy_data import SimpleTokenizerV2
+
+torch.manual_seed(SEED)
+model = GPTModel(TOY_CONFIG).eval()
+tokenizer = SimpleTokenizerV2(TOY_VOCAB)
+ids = torch.tensor([tokenizer.encode(START_CONTEXT)])  # [2, 3, 4, 5]
+repeated_ids = tokenizer.encode(REPEATED_CONTEXT)       # [2, 3, 4, 5, 4]
 
 logits = model(ids)  # 无打印、快照、CPU 转换或导出。
-out = generate_text_simple(model, ids, max_new_tokens=2, context_size=6)
+out = generate_text_simple(
+    model, ids, max_new_tokens=2, context_size=TOY_CONFIG["context_length"]
+)
 
 trace = TeachingTrace(verbose=False)
 traced_logits = model(ids, trace=trace)
@@ -119,7 +125,9 @@ attention = trace.record["blocks"][0]["att"]
 原来的 `verbose`、`show_data` 和 `record_dict` 模型参数已由可选 `trace` 替代。
 自定义回调遵循 `trace(event, **values)`，同步只读观察张量；不要修改张量或消耗随机数。
 同一个 `TeachingTrace` 可顺序复用；并发执行应分别创建实例。
-跨步因果与同词异位的讲解继续使用默认微型词表与两步生成示例。
+当前默认使用 `SEED = 123`、`context_length = 5`、`START_CONTEXT = "Hello, I am"` 与独立重复词输入 `REPEATED_CONTEXT = "Hello, I am I"`。两步生成从 IDs `[2, 3, 4, 5]` 开始，输入长度依次为 4、5，最终序列长度为 6。当前 CPU 默认初始化的示例结果是 IDs `[2, 3, 4, 5, 1, 5]`，文本 `Hello, I am <|endoftext|> am`。生成器不会因为产生 `<|endoftext|>` 而提前停止。
+
+同一个 seed 只固定同一配置下的初始化过程。把上下文嵌入从 `[6, 4]` 改成 `[5, 4]` 会改变参数形状及后续随机数消耗，因此新模型有 308 个参数，且本次权重与旧默认模型不同；不能用旧输出当作当前输出。
 
 需要将演示输出写入其他目录时，可调用 `run_gpt2toy.run(output_dir=...)`。
 默认输出目录仍为脚本所在目录，每次运行覆盖日志及两份导出文件。
@@ -127,14 +135,25 @@ attention = trace.record["blocks"][0]["att"]
 运行回归测试：
 
 ```powershell
-python -B -m unittest test_gpt2toy -v
+python -B -m unittest test_gpt2toy test_gpt2toy_teaching -v
 ```
 
-本次重构在 CPU / PyTorch 2.14.1 上与保留的旧实现做了对照：
+当前 v3.1 已完成以下 CPU 验证：
+
+- 12 项回归测试通过；包含关闭 trace 的静默张量路径、Dropout 训练的输出与梯度一致性、
+  固定重复词样本的独立前向、比较成功 / 失败 / 不可比较，以及另一组模型尺寸的报告。
+- 在相同的长度 5 配置和权重下，对照改动前的核心实现，eval 与带 Dropout 的训练场景中，
+  logits、全部参数梯度和随机数状态完全一致。默认模型容量变化导致的新初始化结果单独记录。
+- 在实际 Chromium 浏览器中验证了默认配置、另一组尺寸、多步裁剪、单步、零步及比较失败共六种报告；
+  无 JavaScript 错误，步骤切换、矩阵表头、折叠与悬浮提示正常。
+- 独立运行 `python run_gpt2toy.py` 已更新 UTF-8 日志、Markdown 报告及 HTML 面板；日志与终端内容一致。
+  相关架构图的 SVG、HTML 和 PNG 也已按当前模型重新生成。
+
+以下是 **v3.0 重构的历史验证记录**，使用旧默认上下文长度 6；它只说明当时新旧实现之间的 parity，不代表当前 `context_length=5` 的输出或验收状态：
 
 - 四组配置分别开启、关闭 trace，共八组对照；涵盖多 batch、多层、QKV 偏置、零层和带 Dropout 的训练。
   初始化参数、严格加载的 `state_dict`、前向结果、全部参数梯度与随机数状态均完全一致，最大输出误差为 0。
-- 默认演示的完整快照数据相同，最终 Token IDs 为 `[2, 3, 4, 5, 4, 4]`。
+- 当时默认演示的完整快照数据相同，最终 Token IDs 为 `[2, 3, 4, 5, 4, 4]`；此结果对应旧配置，不是当前预期输出。
   587 行终端输出仅输出目录路径不同，日志与终端内容相同，Markdown / HTML 导出逐字节一致。
 - 七项回归测试通过，覆盖无 trace 时的静默张量路径、训练观测隔离、快照复用、因果前缀、
   batch 生成与窗口裁剪、分词和数据窗口，以及单头 / 三头的完整教学打印。

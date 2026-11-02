@@ -146,8 +146,9 @@ def _inspect_attention(
                 print_2d_tensor(unmasked_scaled_scores[0, h], indent="  │   │   │   │        ", row_labels=t_labels)
                 print(f"  │   │   │   │      [Head {h}] (3c) 因果掩码后得分 scaled_scores (上三角 j>i 置为 -inf 阻断未来信息):")
                 print_2d_tensor(scaled_scores[0, h], indent="  │   │   │   │        ", row_labels=t_labels)
-                print(f"  │   │   │   │      [Head {h}] (3d) Softmax 注意力权重矩阵 attn_weights (每行概率和 = 1.0):")
+                print(f"  │   │   │   │      [Head {h}] (3d) Softmax / Dropout 后的实际注意力权重矩阵 attn_weights:")
                 print_2d_tensor(attn_weights[0, h], indent="  │   │   │   │        ", row_labels=t_labels)
+                print(f"  │   │   │   │        实际行和: {format_1d(attn_weights[0, h].sum(dim=-1))}")
 
     if verbose:
         print(f"  │   │   │   ├── 4. Value 加权聚合与多头拼接: context_h = attn_weights_h @ V_h -> 左右拼接恢复 (B={b}, T={num_tokens}, d_out={module.d_out})")
@@ -260,11 +261,11 @@ def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, 
         print(f"  │   ├── 输入 Token IDs in_idx: {in_idx.tolist()} | 形状 (B={batch_size}, T={seq_len})")
 
     if verbose:
-        print(f"  │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B={batch_size}, T={seq_len}, emb_dim={module.cfg['emb_dim']})")
+        print(f"  │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight ({module.tok_emb.num_embeddings}×{module.tok_emb.embedding_dim}) 按行抽取 -> 形状 (B={batch_size}, T={seq_len}, emb_dim={module.tok_emb.embedding_dim})")
         if show_data:
             print_2d_tensor(tok_embeds[0], indent="  │   │     ", row_labels=t_labels)
 
-        print(f"  │   ├── 位置嵌入查表 pos_emb(0..{seq_len - 1}): 从 pos_emb.weight (6×4) 取前 {seq_len} 行 -> 形状 (T={seq_len}, emb_dim={module.cfg['emb_dim']})")
+        print(f"  │   ├── 位置嵌入查表 pos_emb(0..{seq_len - 1}): 从 pos_emb.weight ({module.pos_emb.num_embeddings}×{module.pos_emb.embedding_dim}) 取前 {seq_len} 行 -> 形状 (T={seq_len}, emb_dim={module.pos_emb.embedding_dim})")
         if show_data:
             pos_labels = [f"Pos={i} ({t_labels[i]})" for i in range(seq_len)]
             print_2d_tensor(pos_embeds, indent="  │   │     ", row_labels=pos_labels)
@@ -301,8 +302,9 @@ def _inspect_output(*, module, in_idx, logits, verbose, show_data, token_labels,
         if show_data:
             print(f"  │         [全序列每个位置对 {module.cfg['vocab_size']} 个词表 Token 的预测 Logits]:")
             print_2d_tensor(logits[0], indent="  │         ", row_labels=t_labels)
-            print(f"  │         [全序列每个位置经 Softmax 归一化后的词表概率分布 (每行和=1.0)]:")
+            print(f"  │         [全序列每个位置经 Softmax 归一化后的词表概率分布]:")
             print_2d_tensor(probs_all[0], indent="  │         ", row_labels=t_labels)
+            print(f"  │         实际行和: {format_1d(probs_all[0].sum(dim=-1))}")
         print(f"  └── [输出预测阶段完毕 -> 生成全序列 Logits 张量]\n")
 
     record_dict.update({
@@ -319,9 +321,10 @@ def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
     if verbose:
         print("\n" + "=" * 78)
     if verbose:
-        print(f"  [自回归生成步骤 (Step {step + 1}/{max_new_tokens})]  当前上下文序列长度 T = {current_seq_len}")
+        print(f"  [自回归生成步骤 (Step {step + 1}/{max_new_tokens})]  累计序列长度 = {current_seq_len}, 本步上下文 T = {idx_cond.shape[1]}")
     if verbose:
-        print(f"  当前输入文本: \"{current_text}\" (Token IDs: {current_ids})")
+        print(f"  累计文本: \"{current_text}\" (Token IDs: {current_ids})")
+        print(f"  本步实际输入: {tokenizer.decode(idx_cond[0].tolist())!r} (Token IDs: {idx_cond[0].tolist()})")
     if verbose:
         print("=" * 78)
 
@@ -334,10 +337,13 @@ def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
     step_rec = {
         "step_num": step + 1,
         "seq_len": len(cond_ids),
+        "full_seq_len": current_seq_len,
+        "context_start": current_seq_len - len(cond_ids),
         "input_ids": cond_ids,
         "input_tokens": [tokenizer.int_to_str.get(tid, "<|unk|>") for tid in cond_ids],
         "token_labels": token_labels,
-        "input_text": current_text,
+        "input_text": tokenizer.decode(cond_ids),
+        "full_text": current_text,
     }
     return step_rec
 
@@ -418,9 +424,10 @@ class TeachingTrace:
     def __call__(self, event, **values):
         getattr(self, "_on_" + event)(**values)
 
-    def _on_model_start(self, in_idx):
+    def _on_model_start(self, in_idx, training=False):
         if not self._generating:
             self.record = {}
+        self.record["training"] = training
         self.record["embeddings"] = {}
         self.record["blocks"] = []
         self.record["output_stage"] = {}
@@ -523,7 +530,7 @@ class TeachingTrace:
 
 
 
-def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
+def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True, *, seed=None):
     """统计并打印模型超参规格、精确参数量统计及全部关键权重矩阵数据，同时返回结构化字典"""
     vocab_sorted = sorted(tokenizer.str_to_int.items(), key=lambda x: x[1])
     vocab_labels = [f"ID={idx} ('{word}')" for word, idx in vocab_sorted]
@@ -535,16 +542,16 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
     # 从真实 PyTorch 模型提取精确参数计数
     tok_emb_p = sum(p.numel() for p in model.tok_emb.parameters())
     pos_emb_p = sum(p.numel() for p in model.pos_emb.parameters())
-    b0 = model.trf_blocks[0]
-    ln1_p = sum(p.numel() for p in b0.norm1.parameters())
-    qkv_p = sum(p.numel() for m in (b0.att.W_query, b0.att.W_key, b0.att.W_value) for p in m.parameters())
-    out_proj_p = sum(p.numel() for p in b0.att.out_proj.parameters())
-    mha_p = sum(p.numel() for p in b0.att.parameters())
-    ln2_p = sum(p.numel() for p in b0.norm2.parameters())
-    ffn_fc1_p = sum(p.numel() for p in b0.ff.layers[0].parameters())
-    ffn_fc2_p = sum(p.numel() for p in b0.ff.layers[2].parameters())
-    ffn_p = sum(p.numel() for p in b0.ff.parameters())
-    block_p = sum(p.numel() for p in b0.parameters())
+    b0 = model.trf_blocks[0] if model.trf_blocks else None
+    ln1_p = sum(p.numel() for p in b0.norm1.parameters()) if b0 else 0
+    qkv_p = sum(p.numel() for m in (b0.att.W_query, b0.att.W_key, b0.att.W_value) for p in m.parameters()) if b0 else 0
+    out_proj_p = sum(p.numel() for p in b0.att.out_proj.parameters()) if b0 else 0
+    mha_p = sum(p.numel() for p in b0.att.parameters()) if b0 else 0
+    ln2_p = sum(p.numel() for p in b0.norm2.parameters()) if b0 else 0
+    ffn_fc1_p = sum(p.numel() for p in b0.ff.layers[0].parameters()) if b0 else 0
+    ffn_fc2_p = sum(p.numel() for p in b0.ff.layers[2].parameters()) if b0 else 0
+    ffn_p = sum(p.numel() for p in b0.ff.parameters()) if b0 else 0
+    block_p = sum(p.numel() for p in b0.parameters()) if b0 else 0
     all_blocks_p = sum(p.numel() for p in model.trf_blocks.parameters())
     final_ln_p = sum(p.numel() for p in model.final_norm.parameters())
     out_head_p = sum(p.numel() for p in model.out_head.parameters())
@@ -567,6 +574,7 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
         "out_head_p": out_head_p,
         "total_p": total_p,
         "total_bytes_fp32": total_p * 4,
+        "total_parameter_bytes": sum(p.numel() * p.element_size() for p in model.parameters()),
     }
 
     print("\n" + "=" * 78)
@@ -595,7 +603,8 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
     print(f"   2. Transformer 核心主干 ({cfg['n_layers']} 层堆叠):")
     print(f"      - 单个 TransformerBlock 内部构成:")
     print(f"        * Pre-LN 1 (norm1: scale + shift)    : {ln1_p:>4}  ({d} + {d})")
-    print(f"        * 多头注意力 Q/K/V 权重 (qkv_bias={cfg['qkv_bias']}): {qkv_p:>4}  (3 × {d}×{d})")
+    qkv_formula = f"3 × ({d}×{d} + {d})" if cfg["qkv_bias"] else f"3 × {d}×{d}"
+    print(f"        * 多头注意力 Q/K/V 权重 (qkv_bias={cfg['qkv_bias']}): {qkv_p:>4}  ({qkv_formula})")
     print(f"        * 多头注意力输出投影 (out_proj: W + b) : {out_proj_p:>4}  ({d}×{d} + {d})")
     print(f"        * 多头注意力小计 (MHA Total)          : {mha_p:>4}")
     print(f"        * Pre-LN 2 (norm2: scale + shift)    : {ln2_p:>4}  ({d} + {d})")
@@ -649,7 +658,8 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
     if print_weights:
         print("\n" + "=" * 78)
         print("        GPT-2 Toy 全模块关键权重数据清单 (Initialized Weights)")
-        print("        (随机种子 torch.manual_seed(123), PyTorch Linear 权重形状为 [out, in])")
+        seed_note = f"随机种子 torch.manual_seed({seed})" if seed is not None else "从当前模型读取权重"
+        print(f"        ({seed_note}, PyTorch Linear 权重形状为 [out, in])")
         print("=" * 78)
 
         # 1. Embedding 权重
@@ -725,77 +735,174 @@ def collect_and_print_model_info(model, cfg, tokenizer, print_weights=True):
     return param_stats, weights_dict
 
 
-def analyze_and_print_cross_step_insights(steps_records):
-    """对比 Step 1 与 Step 2 的中间张量，验证因果不变性 (KV Cache 原理) 与同词异位效应"""
-    if len(steps_records) < 2:
-        return {}
+def _max_abs_diff(left, right):
+    """比较嵌套数值列表；形状、非有限值或相反符号的无穷大不一致时返回 inf。"""
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        if len(left) != len(right):
+            return math.inf
+        return max((_max_abs_diff(a, b) for a, b in zip(left, right)), default=0.0)
+    if isinstance(left, (list, tuple)) or isinstance(right, (list, tuple)):
+        return math.inf
+    if left == right:
+        return 0.0
+    if not math.isfinite(left) or not math.isfinite(right):
+        return math.inf
+    return abs(left - right)
 
-    s1, s2 = steps_records[0], steps_records[1]
-    t_common = s1["seq_len"]  # 4
 
-    def _max_abs_diff(mat1, mat2):
-        max_d = 0.0
-        for r in range(len(mat1)):
-            for c in range(len(mat1[r])):
-                val1, val2 = mat1[r][c], mat2[r][c]
-                if math.isinf(val1) and math.isinf(val2):
-                    continue
-                max_d = max(max_d, abs(val1 - val2))
-        return max_d
+@torch.no_grad()
+def collect_same_token_example(model, tokenizer, text, positions=(2, 4)):
+    """对固定重复词输入单独前向，返回与生成步骤无关的完整教学快照。"""
+    token_ids = tokenizer.encode(text)
+    if not token_ids or len(token_ids) > model.pos_emb.num_embeddings:
+        raise ValueError("固定重复词输入必须非空，且长度不能超过模型上下文容量")
+    if len(positions) != 2:
+        raise ValueError("同词异位需要两个不同的位置")
+    pos_a, pos_b = positions
+    if pos_a == pos_b or min(pos_a, pos_b) < 0 or max(pos_a, pos_b) >= len(token_ids):
+        raise ValueError("同词异位的位置必须不同且位于固定输入范围内")
+    if token_ids[pos_a] != token_ids[pos_b]:
+        raise ValueError("同词异位的两个位置必须具有相同的 Token ID")
 
-    b1 = s1["blocks"][0]
-    b2 = s2["blocks"][0]
+    trace = TeachingTrace(tokenizer, verbose=False, show_data=False)
+    ids = torch.tensor([token_ids], dtype=torch.long, device=model.tok_emb.weight.device)
+    model(ids, trace=trace)
+    record = trace.record
+    embeddings = record["embeddings"]
+    logits = record["output_stage"]["logits_all"]
 
-    invariance_checks = [
-        ("输入嵌入 x = tok_emb + pos_emb", _max_abs_diff(s1["embeddings"]["x_emb"], s2["embeddings"]["x_emb"][:t_common])),
-        ("Pre-LN 1 输出 (norm1.out)", _max_abs_diff(b1["norm1"]["out"], b2["norm1"]["out"][:t_common])),
-        ("MHA 线性映射 Queries (Q_full)", _max_abs_diff(b1["att"]["q_merged"], b2["att"]["q_merged"][:t_common])),
-        ("MHA 线性映射 Keys (K_full)", _max_abs_diff(b1["att"]["k_merged"], b2["att"]["k_merged"][:t_common])),
-        ("MHA 线性映射 Values (V_full)", _max_abs_diff(b1["att"]["v_merged"], b2["att"]["v_merged"][:t_common])),
-        ("Head 0 注意力权重前 4×4 子矩阵", _max_abs_diff(b1["att"]["heads"][0]["attn_weights"], [row[:t_common] for row in b2["att"]["heads"][0]["attn_weights"][:t_common]])),
-        ("Head 1 注意力权重前 4×4 子矩阵", _max_abs_diff(b1["att"]["heads"][1]["attn_weights"], [row[:t_common] for row in b2["att"]["heads"][1]["attn_weights"][:t_common]])),
-        ("MHA 多头拼接输出 (context_merged)", _max_abs_diff(b1["att"]["context_merged"], b2["att"]["context_merged"][:t_common])),
-        ("MHA 投影输出 (out_proj_out)", _max_abs_diff(b1["att"]["out_proj_out"], b2["att"]["out_proj_out"][:t_common])),
-        ("残差连接 1 输出 (res1.out)", _max_abs_diff(b1["res1"]["out"], b2["res1"]["out"][:t_common])),
-        ("Pre-LN 2 输出 (norm2.out)", _max_abs_diff(b1["norm2"]["out"], b2["norm2"]["out"][:t_common])),
-        ("FFN 降维输出 (fc2_out)", _max_abs_diff(b1["ffn"]["fc2_out"], b2["ffn"]["fc2_out"][:t_common])),
-        ("残差连接 2 输出 (res2.out)", _max_abs_diff(b1["res2"]["out"], b2["res2"]["out"][:t_common])),
-        ("Final LayerNorm 输出", _max_abs_diff(s1["output_stage"]["final_norm"]["out"], s2["output_stage"]["final_norm"]["out"][:t_common])),
-        ("词表预测 Logits (前 4 个位置)", _max_abs_diff(s1["output_stage"]["logits_all"], s2["output_stage"]["logits_all"][:t_common])),
-    ]
-
-    print("\n" + "=" * 78)
-    print("       [深度洞察 1: 跨步因果不变性验证 (Step 1 vs Step 2 -> KV Cache 原理)]")
-    print("=" * 78)
-    print(f"  对比 Step 1 (T=4) 与 Step 2 (T=5) 中前 {t_common} 个位置 (t0..t3: 'Hello', ',', 'I', 'am') 的张量最大绝对误差:")
-    for stage_name, max_diff in invariance_checks:
-        print(f"   * {stage_name.ljust(34)} : max|Step1 - Step2[:4]| = {max_diff:.8f} (完全一致 ✓)")
-    print("  [结论]: 由于因果掩码 (Causal Mask) 将未来位置 j > i 遮蔽为 -inf，历史 Token 的所有中间状态")
-    print("          在后续生成步骤中恒定不变！工业界推理引擎正是利用这一性质缓存历史 K/V (KV Cache)，")
-    print("          使每步只需传入最新 1 个 Token (T=1)，避免了对前缀序列的重复计算。")
-
-    # 同词异位对比: Step 2 中的 t2[ID=4:'I', Pos=2] vs t4[ID=4:'I', Pos=4]
-    print("\n" + "=" * 78)
-    print("       [深度洞察 2: 同词异位对比 (Step 2 中 t2[ID=4:'I'] vs t4[ID=4:'I'])]")
-    print("=" * 78)
-    print("  在 Step 2 中，位置 t2 (Pos=2) 与位置 t4 (Pos=4) 的输入词均为 ID=4 ('I')，但输出截然不同：")
-    print(f"   * 词嵌入 tok_emb[ID=4] (完全相同) : {format_1d(s2['embeddings']['tok_embeds'][2])}")
-    print(f"   * 位置嵌入 pos_emb[Pos=2] (t2)    : {format_1d(s2['embeddings']['pos_embeds'][2])}")
-    print(f"   * 位置嵌入 pos_emb[Pos=4] (t4)    : {format_1d(s2['embeddings']['pos_embeds'][4])}")
-    print(f"   * 融合输入 x_emb[t2]              : {format_1d(s2['embeddings']['x_emb'][2])}")
-    print(f"   * 融合输入 x_emb[t4]              : {format_1d(s2['embeddings']['x_emb'][4])}")
-    print(f"   * Head 0 注意力视野 (t2 仅看 t0..t2): {format_1d(b2['att']['heads'][0]['attn_weights'][2])}")
-    print(f"   * Head 0 注意力视野 (t4 可看 t0..t4): {format_1d(b2['att']['heads'][0]['attn_weights'][4])}")
-    print(f"   * 最终预测 Logits (t2 -> 选 ID=3 ','): {format_1d(s2['output_stage']['logits_all'][2])}")
-    print(f"   * 最终预测 Logits (t4 -> 选 ID=4 'I'): {format_1d(s2['output_stage']['logits_all'][4])}")
-    print("=" * 78)
+    def prediction(position):
+        token_id = max(range(len(logits[position])), key=logits[position].__getitem__)
+        return {"id": token_id, "token": tokenizer.int_to_str.get(token_id, "<|unk|>")}
 
     return {
-        "invariance_checks": [{"name": k, "max_diff": v} for k, v in invariance_checks],
-        "same_token_diff_pos": {
-            "pos_a": 2,
-            "pos_b": 4,
-            "token_id": 4,
-            "token_str": "I",
-        },
+        "available": True,
+        "reason": "",
+        "source": "fixed_input",
+        "input_text": text,
+        "input_ids": token_ids,
+        "input_tokens": [tokenizer.int_to_str.get(tid, "<|unk|>") for tid in token_ids],
+        "token_labels": list(trace._labels),
+        "pos_a": pos_a,
+        "pos_b": pos_b,
+        "token_id": token_ids[pos_a],
+        "token_str": tokenizer.int_to_str.get(token_ids[pos_a], "<|unk|>"),
+        "prediction_a": prediction(pos_a),
+        "prediction_b": prediction(pos_b),
+        "token_embeddings_equal": embeddings["tok_embeds"][pos_a] == embeddings["tok_embeds"][pos_b],
+        "position_embeddings_equal": embeddings["pos_embeds"][pos_a] == embeddings["pos_embeds"][pos_b],
+        "logits_equal": logits[pos_a] == logits[pos_b],
+        "trace": record,
     }
+
+
+def analyze_and_print_cross_step_insights(steps_records, same_token_example=None, *, tolerance=1e-6):
+    """验证同位置前缀，并独立讲解固定输入的同词异位；所有结论来自实际数据。"""
+    if not math.isfinite(tolerance) or tolerance < 0:
+        raise ValueError("比较容差必须是非负有限数")
+    checks = []
+    invariance = {
+        "status": "not_comparable", "reason": "至少需要两个生成步骤",
+        "prefix_len": 0, "step_a": 1, "step_b": 2,
+        "seq_len_a": 0, "seq_len_b": 0, "tolerance": tolerance,
+    }
+    if len(steps_records) >= 2:
+        first, second = steps_records[:2]
+        count = first["seq_len"]
+        invariance.update({
+            "prefix_len": count,
+            "step_a": first["step_num"], "step_b": second["step_num"],
+            "seq_len_a": count, "seq_len_b": second["seq_len"],
+        })
+        if first.get("training") or second.get("training"):
+            invariance["reason"] = "训练模式不用于此项 KV Cache 教学验证；请使用 model.eval()"
+        elif first.get("context_start", 0) != second.get("context_start", 0):
+            invariance["reason"] = "上下文窗口已移动，历史 Token 的局部位置发生变化，不能直接对齐比较"
+        elif not count or first["input_ids"] != second["input_ids"][:count]:
+            invariance["reason"] = "两个步骤没有相同且完整保留的输入前缀"
+        elif first["embeddings"]["pos_indices"] != second["embeddings"]["pos_indices"][:count]:
+            invariance["reason"] = "两个步骤的前缀位置编号不同"
+        elif len(first["blocks"]) != len(second["blocks"]):
+            invariance["reason"] = "两个步骤的模型块数量不同"
+        elif any(len(a["att"]["heads"]) != len(b["att"]["heads"])
+                 for a, b in zip(first["blocks"], second["blocks"])):
+            invariance["reason"] = "两个步骤的注意力头数量不同"
+        else:
+            def add(name, before, after):
+                error = _max_abs_diff(before, after)
+                checks.append({"name": name, "max_diff": error, "passed": error <= tolerance})
+
+            add("输入嵌入 x = tok_emb + pos_emb",
+                first["embeddings"]["x_emb"], second["embeddings"]["x_emb"][:count])
+            for index, (before, after) in enumerate(zip(first["blocks"], second["blocks"])):
+                prefix = f"Block {index} "
+                add(prefix + "Pre-LN 1 输出", before["norm1"]["out"], after["norm1"]["out"][:count])
+                for key, label in (("q_merged", "Queries"), ("k_merged", "Keys"), ("v_merged", "Values")):
+                    add(prefix + f"MHA {label}", before["att"][key], after["att"][key][:count])
+                for head, (left, right) in enumerate(zip(before["att"]["heads"], after["att"]["heads"])):
+                    add(prefix + f"Head {head} 注意力权重前 {count}×{count} 子矩阵",
+                        left["attn_weights"], [row[:count] for row in right["attn_weights"][:count]])
+                for key, label in (("context_merged", "MHA 多头拼接"), ("out_proj_out", "MHA 输出投影")):
+                    add(prefix + label, before["att"][key], after["att"][key][:count])
+                for key, label in (("res1", "残差连接 1"), ("norm2", "Pre-LN 2"), ("res2", "残差连接 2")):
+                    add(prefix + label, before[key]["out"], after[key]["out"][:count])
+                add(prefix + "FFN 降维输出", before["ffn"]["fc2_out"], after["ffn"]["fc2_out"][:count])
+            add("Final LayerNorm 输出", first["output_stage"]["final_norm"]["out"],
+                second["output_stage"]["final_norm"]["out"][:count])
+            add(f"词表预测 Logits 前 {count} 个位置", first["output_stage"]["logits_all"],
+                second["output_stage"]["logits_all"][:count])
+            passed = all(check["passed"] for check in checks)
+            invariance["status"] = "verified" if passed else "different"
+            invariance["reason"] = "所有已记录阶段均在容差内一致" if passed else "存在超过容差的实测差异"
+
+    print("\n" + "=" * 78)
+    print("       [深度洞察 1: 同位置前缀的跨步因果不变性验证]")
+    print("=" * 78)
+    if invariance["status"] == "not_comparable":
+        print(f"  [跳过]: {invariance['reason']}")
+    else:
+        print(f"  对比 Step {invariance['step_a']} (T={invariance['seq_len_a']}) 与 "
+              f"Step {invariance['step_b']} (T={invariance['seq_len_b']}) 的前 "
+              f"{invariance['prefix_len']} 个位置，容差 = {tolerance:g}:")
+        for check in checks:
+            verdict = "通过 ✓" if check["passed"] else "未通过"
+            print(f"   * {check['name']} : max|差值| = {check['max_diff']:.8g} ({verdict})")
+        print(f"  [实测结论]: {invariance['reason']}。")
+        if invariance["status"] == "verified":
+            print("  在 eval、相同输入前缀与相同位置编号下，因果掩码允许复用历史 K/V。")
+            print("  本例仍逐步重新计算整个窗口；窗口移动并重编号时需要重新检查缓存适用条件。")
+
+    same = same_token_example if same_token_example is not None else {
+        "available": False, "reason": "未提供独立的固定重复词输入",
+    }
+    print("\n" + "=" * 78)
+    print("       [深度洞察 2: 固定重复词输入的同词异位对比]")
+    print("=" * 78)
+    if not same["available"]:
+        print(f"  [跳过]: {same.get('reason', '重复词样本不可用')}")
+    else:
+        a, b = same["pos_a"], same["pos_b"]
+        record = same["trace"]
+        embeddings = record["embeddings"]
+        print(f"  独立固定输入: {same['input_text']!r}，IDs = {same['input_ids']}")
+        print(f"  对比 t{a} 与 t{b}，相同 Token ID={same['token_id']} ({same['token_str']!r})。")
+        print(f"   * 词嵌入是否相同: {same['token_embeddings_equal']}")
+        for position in (a, b):
+            print(f"   * tok_emb[t{position}]: {format_1d(embeddings['tok_embeds'][position])}")
+            print(f"   * pos_emb[Pos={position}]: {format_1d(embeddings['pos_embeds'][position])}")
+            print(f"   * x_emb[t{position}]: {format_1d(embeddings['x_emb'][position])}")
+        if record["blocks"]:
+            for head in record["blocks"][0]["att"]["heads"]:
+                for position in (a, b):
+                    print(f"   * Head {head['head_idx']} t{position} 注意力权重: "
+                          f"{format_1d(head['attn_weights'][position])}")
+        for position, prediction in ((a, same["prediction_a"]), (b, same["prediction_b"])):
+            print(f"   * t{position} 最终 Logits: "
+                  f"{format_1d(record['output_stage']['logits_all'][position])}")
+            print(f"     实测 Argmax -> ID={prediction['id']} ({prediction['token']!r})")
+        position_result = "相同" if same["position_embeddings_equal"] else "不同"
+        output_result = "相同" if same["logits_equal"] else "不同"
+        print(f"  [实测结论]: 位置嵌入{position_result}，最终 Logits {output_result}。")
+        print("  相同词嵌入会结合各自的位置向量和因果可见前缀；具体预测以上述实测值为准。")
+    print("=" * 78)
+    return {"invariance_checks": checks, "invariance": invariance, "same_token_diff_pos": same}

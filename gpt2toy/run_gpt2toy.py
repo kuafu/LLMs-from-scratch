@@ -13,48 +13,56 @@ from gpt2toy_diagnostics import (
     _TeeWriter,
     analyze_and_print_cross_step_insights,
     collect_and_print_model_info,
+    collect_same_token_example,
 )
 
 
-def main(output_dir=None):
+SEED = 123
+TOY_VOCAB = {
+    "<|unk|>": 0,
+    "<|endoftext|>": 1,
+    "Hello": 2,
+    ",": 3,
+    "I": 4,
+    "am": 5,
+}
+TOY_CONFIG = {
+    "vocab_size": len(TOY_VOCAB),
+    "context_length": 5,
+    "emb_dim": 4,
+    "n_heads": 2,
+    "n_layers": 1,
+    "drop_rate": 0.0,
+    "qkv_bias": False,
+}
+START_CONTEXT = "Hello, I am"
+REPEATED_CONTEXT = "Hello, I am I"
+
+
+def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEXT,
+         repeated_context=REPEATED_CONTEXT, max_new_tokens=2, seed=SEED):
     out_dir = os.fspath(output_dir) if output_dir is not None else os.path.dirname(os.path.abspath(__file__))
     os.makedirs(out_dir, exist_ok=True)
 
-    # 自定义微型词表 (与 SimpleTokenizerV2 配合)
-    toy_vocab = {
-        "<|unk|>": 0,
-        "<|endoftext|>": 1,
-        "Hello": 2,
-        ",": 3,
-        "I": 4,
-        "am": 5
-    }
+    toy_vocab = dict(TOY_VOCAB if vocab is None else vocab)
+    cfg = dict(TOY_CONFIG if config is None else config)
+    if cfg["vocab_size"] != len(toy_vocab):
+        raise ValueError("vocab_size 必须与实际词表大小一致")
     tokenizer = SimpleTokenizerV2(toy_vocab)
 
-    TOY_CONFIG = {
-        "vocab_size": len(toy_vocab),  # 6
-        "context_length": 6,           # 6
-        "emb_dim": 4,                  # 4
-        "n_heads": 2,                  # 2 (每头维度 head_dim = 2)
-        "n_layers": 1,                 # 1
-        "drop_rate": 0.0,              # 0.0 (推断模式)
-        "qkv_bias": False
-    }
-
     # 初始化固定随机种子的 Toy GPT 模型
-    torch.manual_seed(123)
-    model = GPTModel(TOY_CONFIG)
+    torch.manual_seed(seed)
+    model = GPTModel(cfg)
     model.eval()  # 禁用 Dropout
 
     # 1. 打印并收集模型架构、参数构成统计以及全部模块关键权重数据
     param_stats, weights_dict = collect_and_print_model_info(
-        model, TOY_CONFIG, tokenizer, print_weights=True
+        model, cfg, tokenizer, print_weights=True, seed=seed
     )
 
     # 2. 准备输入文本与编码张量
-    start_context = "Hello, I am"
     encoded = tokenizer.encode(start_context)
-    encoded_tensor = torch.tensor(encoded).unsqueeze(0)
+    encoded_tensor = torch.tensor(encoded, dtype=torch.long).unsqueeze(0)
 
     print("=" * 78)
     print("                         [IN: 输入准备阶段]")
@@ -71,13 +79,14 @@ def main(output_dir=None):
     out = generate_text_simple(
         model=model,
         idx=encoded_tensor,
-        max_new_tokens=2,
-        context_size=TOY_CONFIG["context_length"],
+        max_new_tokens=max_new_tokens,
+        context_size=cfg["context_length"],
         trace=trace,
     )
 
-    # 4. 跨步因果不变性与同词异位对比分析
-    comparisons = analyze_and_print_cross_step_insights(steps_records)
+    # 4. 固定重复词输入单独前向，不依赖随机生成的词。
+    same_token_example = collect_same_token_example(model, tokenizer, repeated_context)
+    comparisons = analyze_and_print_cross_step_insights(steps_records, same_token_example)
 
     decoded_text = tokenizer.decode(out.squeeze(0).tolist())
 
@@ -92,11 +101,11 @@ def main(output_dir=None):
 
     # 6. 汇总完整剖析数据包并执行双轨导出 (Markdown 深度报告 + 交互式 HTML 观战面板)
     trace_data = {
-        "seed": 123,
+        "seed": seed,
         "config": {
-            **TOY_CONFIG,
-            "head_dim": TOY_CONFIG["emb_dim"] // TOY_CONFIG["n_heads"],
-            "ffn_hidden_dim": 4 * TOY_CONFIG["emb_dim"],
+            **cfg,
+            "head_dim": cfg["emb_dim"] // cfg["n_heads"],
+            "ffn_hidden_dim": model.trf_blocks[0].ff.layers[0].out_features if model.trf_blocks else 0,
         },
         "vocab": [
             {"id": idx, "token": word}

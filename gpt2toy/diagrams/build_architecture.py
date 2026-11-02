@@ -1,10 +1,74 @@
-"""Rebuild the source-reviewed GPT2Toy diagram (Python standard library only)."""
+"""Rebuild the GPT2Toy architecture diagram from the current toy model."""
 from pathlib import Path
 from html import escape
 import re
+import sys
 import xml.etree.ElementTree as ET
 
+import torch
+import cairosvg
+
 OUT = Path(__file__).resolve().parent
+ROOT = OUT.parent
+sys.path.insert(0, str(ROOT))
+from gpt2toy import GPTModel, generate_text_simple
+from gpt2toy_data import SimpleTokenizerV2
+from run_gpt2toy import REPEATED_CONTEXT, SEED, START_CONTEXT, TOY_CONFIG, TOY_VOCAB
+
+torch.manual_seed(SEED)
+model = GPTModel(TOY_CONFIG).eval()
+tokenizer = SimpleTokenizerV2(TOY_VOCAB)
+vocab_size = model.tok_emb.num_embeddings
+context_length = model.pos_emb.num_embeddings
+emb_dim = model.pos_emb.embedding_dim
+num_layers = len(model.trf_blocks)
+first_block = model.trf_blocks[0]
+qkv_projection_count = len((first_block.att.W_query, first_block.att.W_key, first_block.att.W_value))
+num_heads = first_block.att.num_heads
+head_dim = first_block.att.head_dim
+ffn_dim = first_block.ff.layers[0].out_features
+drop_rate = model.drop_emb.p
+qkv_bias = first_block.att.W_query.bias is not None
+output_bias = first_block.att.out_proj.bias is not None
+weight_tied = model.tok_emb.weight.data_ptr() == model.out_head.weight.data_ptr()
+param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
+token_embedding_params = model.tok_emb.weight.numel()
+position_embedding_params = model.pos_emb.weight.numel()
+attention_params = sum(p.numel() for block in model.trf_blocks for p in block.att.parameters())
+ffn_params = sum(p.numel() for block in model.trf_blocks for p in block.ff.parameters())
+norm_params = sum(
+    p.numel()
+    for block in model.trf_blocks
+    for module in (block.norm1, block.norm2)
+    for p in module.parameters()
+)
+norm_params += sum(p.numel() for p in model.final_norm.parameters())
+lm_head_params = sum(p.numel() for p in model.out_head.parameters())
+causal_mask_shape = tuple(first_block.att.mask.shape)
+start_ids = tokenizer.encode(START_CONTEXT)
+repeated_ids = tokenizer.encode(REPEATED_CONTEXT)
+repeated_token = REPEATED_CONTEXT.split()[-1]
+repeated_positions = [i for i, token_id in enumerate(repeated_ids) if tokenizer.int_to_str[token_id] == repeated_token]
+repeated_input = torch.tensor([repeated_ids], dtype=torch.long)
+with torch.no_grad():
+    repeated_logits = model(repeated_input)[0]
+repeated_next_ids = [int(repeated_logits[pos].argmax().item()) for pos in repeated_positions]
+repeated_logits_equal = torch.equal(
+    repeated_logits[repeated_positions[0]], repeated_logits[repeated_positions[1]]
+)
+repeat_logits_label = 'logits equal' if repeated_logits_equal else 'logits differ'
+repeat_prediction_labels = ", ".join(
+    f"pos {pos} → {tokenizer.int_to_str[token_id]!r} (ID {token_id})"
+    for pos, token_id in zip(repeated_positions, repeated_next_ids)
+)
+initial_ids = torch.tensor([start_ids], dtype=torch.long)
+generated_ids = generate_text_simple(
+    model, initial_ids, max_new_tokens=2, context_size=context_length
+)[0].tolist()
+generated_text = tokenizer.decode(generated_ids)
+generation_input_lengths = [min(len(start_ids) + step, context_length) for step in range(2)]
+final_sequence_length = len(generated_ids)
+
 W, H = 1860, 1510
 C = dict(bg='#020617', panel='#0b1426', text='#e2e8f0', muted='#a3b3c9',
          cyan='#22d3ee', green='#34d399', purple='#a78bfa', amber='#fbbf24', rose='#fb7185', gray='#64748b')
@@ -44,16 +108,21 @@ put(f'<rect width="{W}" height="{H}" fill="{C["bg"]}"/><rect width="{W}" height=
 text(40,56,'GPT2Toy',38,'text',700)
 text(245,56,'解码器式 Transformer · 核心架构',29,'text',500)
 text(40,94,'Decoder-only  /  Pre-LayerNorm  /  Causal Self-Attention  /  Autoregressive Generation',19,'muted')
-chips=[('词表大小 V', '6'),('上下文长度 C','6'),('嵌入维度 d_model','4'),('头数 × 每头维度','2 × 2'),('解码器层数 L','1'),('可学习参数','312')]
+chips=[('词表大小 V',str(vocab_size)),('上下文长度 C',str(context_length)),
+       ('嵌入维度 d_model',str(emb_dim)),('头数 × 每头维度',f'{num_heads} × {head_dim}'),
+       ('解码器层数 L',str(num_layers)),('可学习参数',str(param_count))]
 for i,(a,b) in enumerate(chips):
     x=40+i*300
     rect(x,122,280,59,'#27374f')
     text(x+16,158,a,17,'muted')
     text(x+260,159,b,24,'cyan',600,'end')
+text(40,200,
+     f'Same-token probe: “{REPEATED_CONTEXT}” → IDs {repeated_ids}; {repeated_token} at {repeated_positions}; {repeat_logits_label}; measured next-token argmax: {repeat_prediction_labels}',
+     15,'amber')
 
 section(40,210,500,1140,'01','GPT 前向与自回归生成','GPTModel · 词元序列 → 隐状态 → 词表得分','cyan')
-section(590,210,600,1140,'02','解码器块 (Decoder Block)','TransformerBlock × 1 · 前置层归一化 Pre-LN','green')
-section(1240,210,580,1140,'03','因果多头自注意力','Causal Multi-Head Self-Attention · 2 heads × 2 dims','purple')
+section(590,210,600,1140,'02','解码器块 (Decoder Block)',f'TransformerBlock × {num_layers} · 前置层归一化 Pre-LN','green')
+section(1240,210,580,1140,'03','因果多头自注意力',f'Causal Multi-Head Self-Attention · {num_heads} heads × {head_dim} dims','purple')
 
 # Main flow. Position IDs are generated locally, not vocabulary IDs.
 arrow('M290 380 V410')
@@ -66,16 +135,16 @@ arrow('M290 1020 V1070')
 arrow('M290 1160 V1210')
 arrow('M80 1260 H60 V443 H80','amber')
 arrow('M500 855 H565 V245 H587','gray',True)
-box(80,290,420,90,'分词器 (Tokenizer)',['SimpleTokenizerV2 · 正则拆词与标点分隔','“Hello, I am” → 词元 ID [2,3,4,5]'])
-box(80,410,420,70,'上下文窗口 (Context Window)',['idx[:, -6:] → 输入词元索引 [B,T]'],tip='generate_text_simple 每步输入整个裁剪后的上下文。')
-box(80,535,200,120,'词元嵌入',['Token Embedding','tok_emb [6,4]','→ [B,T,4]'])
-box(300,535,200,120,'绝对位置嵌入',['Position Embedding','pos_emb [6,4]','→ [T,4]（可学习）'],tip='Learned Absolute Positional Embedding：用 0..T-1 查可学习的位置表；不根据 Token ID 查表。',title_size=19)
+box(80,290,420,90,'分词器 (Tokenizer)',['SimpleTokenizerV2 · 正则拆词与标点分隔',f'“{START_CONTEXT}” → 词元 ID {start_ids}'])
+box(80,410,420,70,'上下文窗口 (Context Window)',[f'idx[:, -{context_length}:] → 输入词元索引 [B,T]'],tip='generate_text_simple 每步输入整个裁剪后的上下文。')
+box(80,535,200,120,'词元嵌入',['Token Embedding',f'tok_emb [{vocab_size},{emb_dim}]',f'→ [B,T,{emb_dim}]'])
+box(300,535,200,120,'绝对位置嵌入',['Position Embedding',f'pos_emb [{context_length},{emb_dim}]',f'→ [T,{emb_dim}]（可学习）'],tip=f'Learned Absolute Positional Embedding：用 0..T-1 查可学习的位置表，形状为 {tuple(model.pos_emb.weight.shape)}；不根据 Token ID 查表。',title_size=19)
 text(300,518,'arange(T)：0…T−1',16,'muted')
-box(80,690,420,90,'嵌入融合 (Embedding Sum)',['词元向量 + 位置向量 → [B,T,4]','嵌入随机失活：Dropout (drop_emb)'])
-box(80,810,420,90,'解码器块 (TransformerBlock)',['前置层归一化 · 因果自注意力 · 前馈网络','n_layers = 1；沿残差流依次堆叠'],'green')
-box(80,950,420,70,'最终层归一化 (final_norm)',['Final LayerNorm · [B,T,4] → [B,T,4]'],'green')
-box(80,1070,420,90,'语言模型头 (LM Head)',['out_head: Linear(4 → 6)，无偏置','词表得分 logits: [B,T,6]；权重未绑定'],'cyan')
-box(80,1210,420,100,'贪婪解码 (Greedy Decoding)',['最后位置 logits[:, -1, :] → [B,6]','argmax → 下一词元 [B,1] → 追加到序列'],'amber')
+box(80,690,420,90,'嵌入融合 (Embedding Sum)',[f'词元向量 + 位置向量 → [B,T,{emb_dim}]',f'嵌入随机失活：Dropout (p={drop_rate:g})'])
+box(80,810,420,90,'解码器块 (TransformerBlock)',['前置层归一化 · 因果自注意力 · 前馈网络',f'n_layers = {num_layers}；沿残差流依次堆叠'],'green')
+box(80,950,420,70,'最终层归一化 (final_norm)',[f'Final LayerNorm · [B,T,{emb_dim}] → [B,T,{emb_dim}]'],'green')
+box(80,1070,420,90,'语言模型头 (LM Head)',[f'out_head: Linear({emb_dim} → {vocab_size})，'+('含偏置' if model.out_head.bias is not None else '无偏置'),f'词表得分 logits: [B,T,{vocab_size}]；'+('权重绑定' if weight_tied else '权重未绑定')],'cyan')
+box(80,1210,420,100,'贪婪解码 (Greedy Decoding)',[f'最后位置 logits[:, -1, :] → [B,{vocab_size}]',f'argmax → 下一词元 [B,1] → 追加到序列'],'amber')
 text(100,1330,'自回归反馈：追加词元，重新预测下一词元',16,'amber')
 
 # Block flow and bypasses; the bypass carries the pre-normalization tensor.
@@ -91,43 +160,47 @@ arrow('M930 1240 V1280','green')
 arrow('M930 299 H635 V710 H720','rose')
 arrow('M930 760 H665 V1200 H720','rose')
 arrow('M1140 515 H1214 V245 H1237','gray',True)
-text(930,293,'x: [B,T,4]',18,'green',600,'middle')
+text(930,293,f'x: [B,T,{emb_dim}]',18,'green',600,'middle')
 box(720,330,420,90,'前置层归一化 (norm1)',['Pre-LayerNorm · 每个词元沿特征维归一化','γ ⊙ (x−μ) / √(σ²+10⁻⁵) + β'],'green')
-box(720,470,420,90,'多头自注意力 (att)',['Multi-Head Self-Attention · 因果掩码','上下文信息聚合：[B,T,4] → [B,T,4]'],'purple')
+box(720,470,420,90,'多头自注意力 (att)',['Multi-Head Self-Attention · 因果掩码',f'上下文信息聚合：[B,T,{emb_dim}] → [B,T,{emb_dim}]'],'purple')
 rect(720,595,420,45,'gray'); text(930,624,'残差分支随机失活 (drop_shortcut)',18,'muted',400,'middle')
 rect(720,680,420,70,'rose'); text(930,705,'残差相加 ① (Residual Add)',18,'rose',600,'middle'); text(930,733,'x₁ = x + Attention(LN₁(x))',19,'text',400,'middle')
-box(720,790,420,90,'前置层归一化 (norm2)',['Pre-LayerNorm · [B,T,4] → [B,T,4]','可学习缩放 γ[4] 与平移 β[4]'],'green')
-box(720,930,420,120,'逐位置前馈网络 (FFN / MLP)',['Linear(4 → 16)  →  GELU  →  Linear(16 → 4)','ff：[B,T,4] → [B,T,16] → [B,T,4]','GELU：高斯误差线性单元（tanh 近似）'],'green')
+box(720,790,420,90,'前置层归一化 (norm2)',[f'Pre-LayerNorm · [B,T,{emb_dim}] → [B,T,{emb_dim}]',f'可学习缩放 γ[{emb_dim}] 与平移 β[{emb_dim}]'],'green')
+box(720,930,420,120,'逐位置前馈网络 (FFN / MLP)',[f'Linear({emb_dim} → {ffn_dim})  →  GELU  →  Linear({ffn_dim} → {emb_dim})',f'ff：[B,T,{emb_dim}] → [B,T,{ffn_dim}] → [B,T,{emb_dim}]','GELU：高斯误差线性单元（tanh 近似）'],'green')
 rect(720,1085,420,45,'gray'); text(930,1114,'残差分支随机失活 (drop_shortcut)',18,'muted',400,'middle')
 rect(720,1170,420,70,'rose'); text(930,1195,'残差相加 ② (Residual Add)',18,'rose',600,'middle'); text(930,1223,'x₂ = x₁ + FFN(LN₂(x₁))',19,'text',400,'middle')
-text(930,1307,'残差流输出 x₂: [B,T,4]',20,'green',600,'middle')
+text(930,1307,f'Residual stream output x₂: [B,T,{emb_dim}]',20,'green',600,'middle')
 text(620,555,'Identity shortcut · x',17,'rose',400,'middle',extra='transform="rotate(-90 620 555)"')
 text(650,1000,'Identity shortcut · x₁',17,'rose',400,'middle',extra='transform="rotate(-90 650 1000)"')
 
 # Attention details.
 for a,b in [(380,420),(510,550),(650,690),(780,820),(890,930)]:
     arrow(f'M1530 {a} V{b}','purple')
-box(1280,290,500,90,'① 查询 / 键 / 值投影 (Q / K / V)',['Query / Key / Value · 独立 Linear(4 → 4)','3 × [B,T,4]；各权重 [4,4]，均无偏置'],'purple',tip='对应 W_query、W_key、W_value 三个可学习线性投影。')
-box(1280,420,500,90,'② 注意力头拆分 (Split Heads)',['view + transpose: [B,T,4] → [B,2,T,2]','每个头均保留序列长度 T；每头特征维度为 2'],'purple')
-box(1280,550,500,100,'③ 缩放点积注意力得分',['QKᵀ / √d_head → [B,2,T,T]；d_head = 2','因果掩码 (Causal Mask)：未来位置 j > i → −∞'],'purple',tip='Scaled Dot-Product Attention：当前实现先对 QKᵀ 应用因果掩码，再除以 √d_head。')
-box(1280,690,500,90,'④ 注意力权重归一化 (Softmax)',['沿 key 维度归一化 → A: [B,2,T,T]','注意力随机失活 (Attention Dropout)'],'purple')
-box(1280,820,500,70,'⑤ 值向量加权聚合 (Weighted Sum)',['A @ V: [B,2,T,T] @ [B,2,T,2] → [B,2,T,2]'],'purple')
-box(1280,930,500,100,'⑥ 多头拼接与输出投影',['Concat Heads → 拼接结果 [B,T,4]','out_proj: Linear(4 → 4)，含偏置 → [B,T,4]'],'purple')
+box(1280,290,500,90,'① 查询 / 键 / 值投影 (Q / K / V)',[f'Query / Key / Value · 独立 Linear({emb_dim} → {emb_dim})',f'{qkv_projection_count} × [B,T,{emb_dim}]；各权重 [{emb_dim},{emb_dim}]，'+('含偏置' if qkv_bias else '无偏置')],'purple',tip='对应 W_query、W_key、W_value 三个可学习线性投影。')
+box(1280,420,500,90,'② 注意力头拆分 (Split Heads)',[f'view + transpose: [B,T,{emb_dim}] → [B,{num_heads},T,{head_dim}]',f'每个头均保留序列长度 T；每头特征维度为 {head_dim}'],'purple')
+box(1280,550,500,100,'③ 缩放点积注意力得分',[f'QKᵀ / √d_head → [B,{num_heads},T,T]；d_head = {head_dim}',f'因果掩码形状 {causal_mask_shape}；未来位置 j > i → −∞'],'purple',tip=f'Scaled Dot-Product Attention：当前实现先对 QKᵀ 应用 {causal_mask_shape} 因果掩码，再除以 √{head_dim}。')
+box(1280,690,500,90,'④ 注意力权重归一化 (Softmax)',[f'沿 key 维度归一化 → A: [B,{num_heads},T,T]',f'注意力随机失活 (Attention Dropout, p={first_block.att.dropout.p:g})'],'purple')
+box(1280,820,500,70,'⑤ 值向量加权聚合 (Weighted Sum)',[f'A @ V: [B,{num_heads},T,T] @ [B,{num_heads},T,{head_dim}] → [B,{num_heads},T,{head_dim}]'],'purple')
+box(1280,930,500,100,'⑥ 多头拼接与输出投影',[f'Concat Heads → 拼接结果 [B,T,{emb_dim}]',f'out_proj: Linear({emb_dim} → {emb_dim})，'+('含偏置' if output_bias else '无偏置')+f' → [B,T,{emb_dim}]'],'purple')
 rect(1280,1060,500,260,'#334155')
-text(1298,1093,'可学习参数分布 · 312',20,'text',600)
-rows=[('词元嵌入 24 + 位置嵌入 24','48'),('自注意力：Q/K/V 48 + 输出投影 20','68'),('前馈网络：4×16+16 + 16×4+4','148'),('层归一化：3 × (γ4 + β4)','24'),('语言模型头：6×4，无偏置','24')]
+text(1298,1093,f'可学习参数分布 · {param_count}',20,'text',600)
+rows=[(f'词元嵌入 {token_embedding_params} + 位置嵌入 {position_embedding_params}',str(token_embedding_params+position_embedding_params)),
+      (f'自注意力 ({num_layers} 层)',str(attention_params)),
+      (f'前馈网络 ({num_layers} 层, {emb_dim}→{ffn_dim}→{emb_dim})',str(ffn_params)),
+      (f'层归一化 ({2*num_layers+1} 个)',str(norm_params)),
+      (f'语言模型头 ({vocab_size}×{emb_dim})',str(lm_head_params))]
 for i,(name,value) in enumerate(rows):
     text(1298,1128+i*31,name,17,'muted')
     text(1760,1128+i*31,value,18,'cyan',600,'end')
-text(1298,1304,'mask 是 buffer；Dropout / GELU 无可学习参数',16,'muted')
+text(1298,1304,f'mask buffer {causal_mask_shape}；Dropout / GELU 无可学习参数',16,'muted')
 
 # Compact reading key; the diagram focuses on GPT computation only.
 text(40,1395,'读图约定',18,'text',600)
 for x,color,label in [(155,'cyan','模型前向'),(380,'rose','残差连接'),(605,'amber','自回归反馈'),(870,'gray','细节展开')]:
     arrow(f'M{x} 1389 H{x+40}',color,color=='gray');text(x+53,1395,label,17,'muted')
-text(1170,1395,'B：批大小  ·  T：序列长度  ·  本例 B=1，T=4→5',17,'muted')
-text(40,1440,'实例设定：随机初始化，未训练；Dropout = 0，图中残差公式按此简写；嵌入与语言模型头权重独立；无 KV Cache。',18,'muted')
-text(40,1480,'依据当前 gpt2toy.py 实现：126 / 181 / 322 / 382 / 421 / 503 / 821  ·  参数量与张量形状已核验  ·  2026-11-02',16,'muted')
+text(1170,1395,f'B：批大小  ·  T：序列长度  ·  本例 B=1，输入 T={"→".join(map(str,generation_input_lengths))}，输出长 {final_sequence_length}',17,'muted')
+text(40,1440,f'实例设定：seed={SEED}，随机初始化且未训练；Dropout p={drop_rate:g}；嵌入与 LM Head 权重{"绑定" if weight_tied else "独立"}；无 KV Cache。',18,'muted')
+text(40,1480,f'依据 gpt2toy.py / run_gpt2toy.py 当前符号与 CPU 模型实例生成 · mask={causal_mask_shape} · 参数={param_count} · 示例输出：{generated_text}',15,'muted')
 put('</svg>')
 svg='\n'.join(lines)
 ET.fromstring(svg)
@@ -145,10 +218,14 @@ html='''<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name
 </style></head><body><div class="container" id="report-container"><header><h1>GPT2Toy 架构阅读器</h1><span class="hint">从总览到计算细节；悬停节点查看说明</span><div class="toolbar"><div class="toolbar-actions"><button onclick="copyAsImage(this)">复制图片</button><button onclick="downloadPNG(this)">PNG</button><button onclick="downloadPDF(this)">PDF</button></div><button class="toolbar-toggle" onclick="this.parentElement.classList.toggle('expanded')" aria-label="导出选项">⋯</button></div></header>
 <div class="controls"><button onclick="zoom('100%')">适应宽度</button><button onclick="zoom('1860px')">原始尺寸</button><button onclick="zoom('2400px')">放大细节</button><span class="hint">静态图可离线阅读；工具栏导出需加载 CDN。亦可直接打开下方现成 PNG / SVG。</span></div>
 <div class="viewport">'''+svg+'''</div><div class="cards">
-<article class="card"><h2>自注意力与前馈网络</h2><p>因果自注意力（Causal Self-Attention）在当前位置及历史位置之间聚合信息；逐位置前馈网络（Position-wise FFN / MLP）独立变换每个位置的特征。两者共享同一条 4 维残差流。</p></article>
+<article class="card"><h2>自注意力与前馈网络</h2><p>因果自注意力（Causal Self-Attention）在当前位置及历史位置之间聚合信息；逐位置前馈网络（Position-wise FFN / MLP）独立变换每个位置的特征。两者共享同一条 __EMB_DIM__ 维残差流。</p></article>
 <article class="card"><h2>前置层归一化与残差连接</h2><p>Pre-LN 把层归一化放在注意力或前馈子层之前；恒等旁路保留子层输入，再与子层输出相加。LayerNorm 沿特征维计算统计量，学习缩放 γ 与平移 β；最终层归一化位于全部解码器块之后。</p></article>
-<article class="card"><h2>语言模型头与自回归生成</h2><p>语言模型头（LM Head）把隐藏状态投影为每个位置的词表得分（logits）。生成时只取最后位置，用贪婪解码选出下一词元，追加后再次前向。本例未实现 KV Cache，每步重新计算上下文。</p></article>
-</div><div class="sources">文件：<a href="gpt2toy-architecture.png">高清 PNG</a> · <a href="gpt2toy-architecture.svg">SVG 矢量图</a><br>源码：<a href="../gpt2toy.py">gpt2toy.py</a>。图中专业术语对应当前实现；参数总数与张量形状已通过 CPU 前向核验。</div>
+<article class="card"><h2>语言模型头与自回归生成</h2><p>语言模型头（LM Head）把隐藏状态投影为每个位置的词表得分（logits）。生成时只取最后位置，用贪婪解码选出下一词元，追加后再次前向。本例生成 IDs <code>__GENERATED_IDS__</code>（<code>__GENERATED_TEXT__</code>）；产生 end-of-text token 不会停止循环。本例未实现 KV Cache，每步重新计算上下文。</p></article>
+</div><div class="sources">文件：<a href="gpt2toy-architecture.png">高清 PNG</a> · <a href="gpt2toy-architecture.svg">SVG 矢量图</a><br>源码：<a href="../gpt2toy.py">gpt2toy.py</a>。参数数量、维度与示例输出由 run_gpt2toy.py 常量和 CPU 初始化模型计算生成。</div>
 </div><script>function zoom(w){document.querySelector('.viewport svg').style.width=w}</script>'''+export_script+'</body></html>'
+html=(html.replace('__EMB_DIM__',str(emb_dim))
+          .replace('__GENERATED_IDS__',escape(str(generated_ids)))
+          .replace('__GENERATED_TEXT__',escape(generated_text)))
 (OUT/'gpt2toy-architecture.html').write_text(html,encoding='utf-8')
-print('Generated SVG + HTML; XML valid.')
+cairosvg.svg2png(bytestring=svg.encode('utf-8'), write_to=str(OUT/'gpt2toy-architecture.png'))
+print('Generated SVG + HTML + PNG; XML valid.')
