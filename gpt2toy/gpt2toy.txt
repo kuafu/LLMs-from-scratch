@@ -155,6 +155,7 @@
   累计文本: "Hello, I am" (Token IDs: [2, 3, 4, 5])
   本步实际输入: 'Hello, I am' (Token IDs: [2, 3, 4, 5])
 ==============================================================================
+  >>> GPTModel.forward begin | in_idx.shape=(1, 4)
   ┌── [1. 输入嵌入阶段 (Input Embeddings)]
   │   ├── 输入 Token IDs in_idx: [[2, 3, 4, 5]] | 形状 (B=1, T=4)
   │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=4, emb_dim=4)
@@ -317,6 +318,7 @@
   │         实际行和: [ 1.0000,  1.0000,  1.0000,  1.0000]
   └── [输出预测阶段完毕 -> 生成全序列 Logits 张量]
 
+  <<< GPTModel.forward end   | logits.shape=(1, 4, 6)
   ┌── [4. 自回归生成决策分析 (Next Token Prediction)]
   │   ├── 提取末尾时间步 Logits (logits[:, -1, :], 对应 t3[ID=5:'am']): 形状 (1, 6)
   │   ├── 词表中各候选 Token 预测分布 (Softmax 概率):
@@ -335,6 +337,7 @@
   累计文本: "Hello, I am <|endoftext|>" (Token IDs: [2, 3, 4, 5, 1])
   本步实际输入: 'Hello, I am <|endoftext|>' (Token IDs: [2, 3, 4, 5, 1])
 ==============================================================================
+  >>> GPTModel.forward begin | in_idx.shape=(1, 5)
   ┌── [1. 输入嵌入阶段 (Input Embeddings)]
   │   ├── 输入 Token IDs in_idx: [[2, 3, 4, 5, 1]] | 形状 (B=1, T=5)
   │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=5, emb_dim=4)
@@ -525,6 +528,7 @@
   │         实际行和: [ 1.0000,  1.0000,  1.0000,  1.0000,  1.0000]
   └── [输出预测阶段完毕 -> 生成全序列 Logits 张量]
 
+  <<< GPTModel.forward end   | logits.shape=(1, 5, 6)
   ┌── [4. 自回归生成决策分析 (Next Token Prediction)]
   │   ├── 提取末尾时间步 Logits (logits[:, -1, :], 对应 t4[ID=1:'<|endoftext|>']): 形状 (1, 6)
   │   ├── 词表中各候选 Token 预测分布 (Softmax 概率):

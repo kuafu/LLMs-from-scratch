@@ -425,6 +425,8 @@ class TeachingTrace:
         getattr(self, "_on_" + event)(**values)
 
     def _on_model_start(self, in_idx, training=False):
+        if self.verbose:
+            print(f"  >>> GPTModel.forward begin | in_idx.shape={tuple(in_idx.shape)}")
         if not self._generating:
             self.record = {}
         self.record["training"] = training
@@ -515,6 +517,8 @@ class TeachingTrace:
     def _on_model_end(self, **values):
         _inspect_output(**values, verbose=self.verbose, show_data=self.show_data,
                         token_labels=self._labels, record_dict=self.record["output_stage"])
+        if self.verbose:
+            print(f"  <<< GPTModel.forward end   | logits.shape={tuple(values['logits'].shape)}")
 
     def _on_generation_start(self, step, max_new_tokens, idx, idx_cond):
         if self.tokenizer is None:

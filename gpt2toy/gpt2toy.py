@@ -159,6 +159,7 @@ class GPTModel(nn.Module):
     def forward(self, in_idx, trace=None):
         _, seq_len = in_idx.shape
         if trace is not None:
+            # begin：教学 trace 在此打印 GPTModel.forward 的入口。
             trace("model_start", in_idx=in_idx, training=self.training)
 
         tok_embeds = self.tok_emb(in_idx)
@@ -181,6 +182,7 @@ class GPTModel(nn.Module):
         x_norm_final = self.final_norm(x, trace=trace)
         logits = self.out_head(x_norm_final)
         if trace is not None:
+            # end：教学 trace 在此打印出口，随后返回 logits。
             trace("model_end", module=self, in_idx=in_idx, logits=logits)
         return logits
 

@@ -56,9 +56,7 @@ def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEX
     model.eval()  # 禁用 Dropout
 
     # 1. 打印并收集模型架构、参数构成统计以及全部模块关键权重数据
-    param_stats, weights_dict = collect_and_print_model_info(
-        model, cfg, tokenizer, print_weights=True, seed=seed
-    )
+    param_stats, weights_dict = collect_and_print_model_info(model, cfg, tokenizer, print_weights=True, seed=seed)
 
     # 2. 准备输入文本与编码张量
     encoded = tokenizer.encode(start_context)
