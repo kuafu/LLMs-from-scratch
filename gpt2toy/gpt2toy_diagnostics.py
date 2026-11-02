@@ -330,7 +330,7 @@ def _start_generation(tokenizer, step, max_new_tokens, generated_ids, context_id
     current_seq_len = generated_ids.shape[1]
     current_ids = generated_ids[0].tolist()
     current_text = tokenizer.decode(current_ids)
-
+    
     if verbose:
         print("\n" + "=" * 78)
     if verbose:

@@ -155,10 +155,10 @@
   累计文本: "Hello, I am" (Token IDs: [2, 3, 4, 5])
   本步实际输入: 'Hello, I am' (Token IDs: [2, 3, 4, 5])
 ==============================================================================
-  >>> GPTModel.forward begin | in_idx.shape=(1, 4)
+  >>> GPTModel.forward begin | input_ids.shape=(1, 4)
   ┌── [1. 输入嵌入阶段 (Input Embeddings)]
-  │   ├── 输入 Token IDs in_idx: [[2, 3, 4, 5]] | 形状 (B=1, T=4)
-  │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=4, emb_dim=4)
+  │   ├── 输入 Token IDs input_ids: [[2, 3, 4, 5]] | 形状 (B=1, T=4)
+  │   ├── 词嵌入查表 tok_emb(input_ids): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=4, emb_dim=4)
   │   │     t0[ID=2:'Hello']: [-0.1606, -0.4015,  0.6957, -1.8061]
   │   │     t1[ID=3:',']    : [ 1.8960, -0.1750,  1.3689, -1.6033]
   │   │     t2[ID=4:'I']    : [-0.7849, -1.4096, -0.4076,  0.7953]
@@ -346,7 +346,7 @@
   │   │   * ID=3 ','            :  13.44%  [Logit: -0.2697]
   │   │   * ID=4 'I'            :  11.49%  [Logit: -0.4262]
   │   │   * ID=5 'am'           :   5.87%  [Logit: -1.0973]
-  │   ├── 贪婪采样结果: idx_next = [[1]] -> Token ID = 1 ("<|endoftext|>")
+  │   ├── 贪婪采样结果: next_token_ids = [[1]] -> Token ID = 1 ("<|endoftext|>")
   │   └── 序列拼接更新: 长度 T 由 4 -> 5 | 新序列 IDs: [2, 3, 4, 5, 1]
   └── [步骤 1 完成] -> 当前累计生成文本: "Hello, I am <|endoftext|>"
 
@@ -355,10 +355,10 @@
   累计文本: "Hello, I am <|endoftext|>" (Token IDs: [2, 3, 4, 5, 1])
   本步实际输入: 'Hello, I am <|endoftext|>' (Token IDs: [2, 3, 4, 5, 1])
 ==============================================================================
-  >>> GPTModel.forward begin | in_idx.shape=(1, 5)
+  >>> GPTModel.forward begin | input_ids.shape=(1, 5)
   ┌── [1. 输入嵌入阶段 (Input Embeddings)]
-  │   ├── 输入 Token IDs in_idx: [[2, 3, 4, 5, 1]] | 形状 (B=1, T=5)
-  │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=5, emb_dim=4)
+  │   ├── 输入 Token IDs input_ids: [[2, 3, 4, 5, 1]] | 形状 (B=1, T=5)
+  │   ├── 词嵌入查表 tok_emb(input_ids): 从 tok_emb.weight (6×4) 按行抽取 -> 形状 (B=1, T=5, emb_dim=4)
   │   │     t0[ID=2:'Hello']        : [-0.1606, -0.4015,  0.6957, -1.8061]
   │   │     t1[ID=3:',']            : [ 1.8960, -0.1750,  1.3689, -1.6033]
   │   │     t2[ID=4:'I']            : [-0.7849, -1.4096, -0.4076,  0.7953]
@@ -574,7 +574,7 @@
   │   │   * ID=3 ','            :  22.86%  [Logit:  0.4369]
   │   │   * ID=4 'I'            :  15.30%  [Logit:  0.0350]
   │   │   * ID=5 'am'           :  27.50%  [Logit:  0.6214]  <-- [最高概率 / Argmax 选中]
-  │   ├── 贪婪采样结果: idx_next = [[5]] -> Token ID = 5 ("am")
+  │   ├── 贪婪采样结果: next_token_ids = [[5]] -> Token ID = 5 ("am")
   │   └── 序列拼接更新: 长度 T 由 5 -> 6 | 新序列 IDs: [2, 3, 4, 5, 1, 5]
   └── [步骤 2 完成] -> 当前累计生成文本: "Hello, I am <|endoftext|> am"
 
