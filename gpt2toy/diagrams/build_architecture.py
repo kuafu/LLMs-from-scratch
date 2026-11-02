@@ -1,0 +1,154 @@
+"""Rebuild the source-reviewed GPT2Toy diagram (Python standard library only)."""
+from pathlib import Path
+from html import escape
+import re
+import xml.etree.ElementTree as ET
+
+OUT = Path(__file__).resolve().parent
+W, H = 1860, 1510
+C = dict(bg='#020617', panel='#0b1426', text='#e2e8f0', muted='#a3b3c9',
+         cyan='#22d3ee', green='#34d399', purple='#a78bfa', amber='#fbbf24', rose='#fb7185', gray='#64748b')
+lines = []
+def put(s): lines.append(s)
+def text(x,y,s,size=18,color='text',weight=400,anchor='start',extra=''):
+    put(f'<text x="{x}" y="{y}" font-size="{size}" fill="{C.get(color,color)}" font-weight="{weight}" text-anchor="{anchor}" {extra}>{escape(s)}</text>')
+def rect(x,y,w,h,stroke='gray',fill=None,dash=False,r=12):
+    d=' stroke-dasharray="7 6"' if dash else ''
+    put(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{fill or C["panel"]}" stroke="{C.get(stroke,stroke)}" stroke-width="1.4"{d}/>')
+def arrow(path,color='cyan',dash=False):
+    d=' stroke-dasharray="6 6"' if dash else ''
+    put(f'<path d="{path}" fill="none" stroke="{C[color]}" stroke-width="2" marker-end="url(#{color})"{d}/>')
+def box(x,y,w,h,title,details=(),color='cyan',tip='',title_size=20):
+    put('<g class="node">')
+    if tip: put(f'<title>{escape(tip)}</title>')
+    rect(x,y,w,h,color)
+    text(x+18,y+29,title,title_size,color,600)
+    for i,s in enumerate(details): text(x+18,y+57+i*24,s,17,'muted')
+    put('</g>')
+def section(x,y,w,h,num,title,sub,color):
+    rect(x,y,w,h,'#27374f',fill='#071020')
+    text(x+22,y+34,num,17,color,700)
+    text(x+58,y+34,title,23,'text',600)
+    text(x+22,y+64,sub,16,'muted')
+
+put(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-labelledby="title desc">')
+put('<title id="title">GPT2Toy 整体架构与张量数据流</title>')
+put('<desc id="desc">GPT 解码器架构：词元与绝对位置嵌入、前置层归一化、因果多头自注意力、逐位置前馈网络、残差连接、语言模型头与自回归生成。</desc>')
+put('<style>text{font-family:"Segoe UI","Microsoft YaHei",sans-serif} .node:hover rect{stroke-width:2.5}</style>')
+put('<defs>')
+for k in ['cyan','green','purple','amber','rose','gray']:
+    put(f'<marker id="{k}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="{C[k]}"/></marker>')
+put('<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#12203a" stroke-width="0.5"/></pattern>')
+put('</defs>')
+put(f'<rect width="{W}" height="{H}" fill="{C["bg"]}"/><rect width="{W}" height="{H}" fill="url(#grid)"/>')
+text(40,56,'GPT2Toy',38,'text',700)
+text(245,56,'解码器式 Transformer · 核心架构',29,'text',500)
+text(40,94,'Decoder-only  /  Pre-LayerNorm  /  Causal Self-Attention  /  Autoregressive Generation',19,'muted')
+chips=[('词表大小 V', '6'),('上下文长度 C','6'),('嵌入维度 d_model','4'),('头数 × 每头维度','2 × 2'),('解码器层数 L','1'),('可学习参数','312')]
+for i,(a,b) in enumerate(chips):
+    x=40+i*300
+    rect(x,122,280,59,'#27374f')
+    text(x+16,158,a,17,'muted')
+    text(x+260,159,b,24,'cyan',600,'end')
+
+section(40,210,500,1140,'01','GPT 前向与自回归生成','GPTModel · 词元序列 → 隐状态 → 词表得分','cyan')
+section(590,210,600,1140,'02','解码器块 (Decoder Block)','TransformerBlock × 1 · 前置层归一化 Pre-LN','green')
+section(1240,210,580,1140,'03','因果多头自注意力','Causal Multi-Head Self-Attention · 2 heads × 2 dims','purple')
+
+# Main flow. Position IDs are generated locally, not vocabulary IDs.
+arrow('M290 380 V410')
+arrow('M290 480 V502 H180 V535')
+arrow('M180 655 V673 H290 V690')
+arrow('M400 655 V673 H290 V690')
+arrow('M290 780 V810')
+arrow('M290 900 V950')
+arrow('M290 1020 V1070')
+arrow('M290 1160 V1210')
+arrow('M80 1260 H60 V443 H80','amber')
+arrow('M500 855 H565 V245 H587','gray',True)
+box(80,290,420,90,'分词器 (Tokenizer)',['SimpleTokenizerV2 · 正则拆词与标点分隔','“Hello, I am” → 词元 ID [2,3,4,5]'])
+box(80,410,420,70,'上下文窗口 (Context Window)',['idx[:, -6:] → 输入词元索引 [B,T]'],tip='generate_text_simple 每步输入整个裁剪后的上下文。')
+box(80,535,200,120,'词元嵌入',['Token Embedding','tok_emb [6,4]','→ [B,T,4]'])
+box(300,535,200,120,'绝对位置嵌入',['Position Embedding','pos_emb [6,4]','→ [T,4]（可学习）'],tip='Learned Absolute Positional Embedding：用 0..T-1 查可学习的位置表；不根据 Token ID 查表。',title_size=19)
+text(300,518,'arange(T)：0…T−1',16,'muted')
+box(80,690,420,90,'嵌入融合 (Embedding Sum)',['词元向量 + 位置向量 → [B,T,4]','嵌入随机失活：Dropout (drop_emb)'])
+box(80,810,420,90,'解码器块 (TransformerBlock)',['前置层归一化 · 因果自注意力 · 前馈网络','n_layers = 1；沿残差流依次堆叠'],'green')
+box(80,950,420,70,'最终层归一化 (final_norm)',['Final LayerNorm · [B,T,4] → [B,T,4]'],'green')
+box(80,1070,420,90,'语言模型头 (LM Head)',['out_head: Linear(4 → 6)，无偏置','词表得分 logits: [B,T,6]；权重未绑定'],'cyan')
+box(80,1210,420,100,'贪婪解码 (Greedy Decoding)',['最后位置 logits[:, -1, :] → [B,6]','argmax → 下一词元 [B,1] → 追加到序列'],'amber')
+text(100,1330,'自回归反馈：追加词元，重新预测下一词元',16,'amber')
+
+# Block flow and bypasses; the bypass carries the pre-normalization tensor.
+arrow('M930 295 V330','green')
+arrow('M930 420 V470','green')
+arrow('M930 560 V595','green')
+arrow('M930 640 V680','green')
+arrow('M930 750 V790','green')
+arrow('M930 880 V930','green')
+arrow('M930 1050 V1085','green')
+arrow('M930 1130 V1170','green')
+arrow('M930 1240 V1280','green')
+arrow('M930 299 H635 V710 H720','rose')
+arrow('M930 760 H665 V1200 H720','rose')
+arrow('M1140 515 H1214 V245 H1237','gray',True)
+text(930,293,'x: [B,T,4]',18,'green',600,'middle')
+box(720,330,420,90,'前置层归一化 (norm1)',['Pre-LayerNorm · 每个词元沿特征维归一化','γ ⊙ (x−μ) / √(σ²+10⁻⁵) + β'],'green')
+box(720,470,420,90,'多头自注意力 (att)',['Multi-Head Self-Attention · 因果掩码','上下文信息聚合：[B,T,4] → [B,T,4]'],'purple')
+rect(720,595,420,45,'gray'); text(930,624,'残差分支随机失活 (drop_shortcut)',18,'muted',400,'middle')
+rect(720,680,420,70,'rose'); text(930,705,'残差相加 ① (Residual Add)',18,'rose',600,'middle'); text(930,733,'x₁ = x + Attention(LN₁(x))',19,'text',400,'middle')
+box(720,790,420,90,'前置层归一化 (norm2)',['Pre-LayerNorm · [B,T,4] → [B,T,4]','可学习缩放 γ[4] 与平移 β[4]'],'green')
+box(720,930,420,120,'逐位置前馈网络 (FFN / MLP)',['Linear(4 → 16)  →  GELU  →  Linear(16 → 4)','ff：[B,T,4] → [B,T,16] → [B,T,4]','GELU：高斯误差线性单元（tanh 近似）'],'green')
+rect(720,1085,420,45,'gray'); text(930,1114,'残差分支随机失活 (drop_shortcut)',18,'muted',400,'middle')
+rect(720,1170,420,70,'rose'); text(930,1195,'残差相加 ② (Residual Add)',18,'rose',600,'middle'); text(930,1223,'x₂ = x₁ + FFN(LN₂(x₁))',19,'text',400,'middle')
+text(930,1307,'残差流输出 x₂: [B,T,4]',20,'green',600,'middle')
+text(620,555,'Identity shortcut · x',17,'rose',400,'middle',extra='transform="rotate(-90 620 555)"')
+text(650,1000,'Identity shortcut · x₁',17,'rose',400,'middle',extra='transform="rotate(-90 650 1000)"')
+
+# Attention details.
+for a,b in [(380,420),(510,550),(650,690),(780,820),(890,930)]:
+    arrow(f'M1530 {a} V{b}','purple')
+box(1280,290,500,90,'① 查询 / 键 / 值投影 (Q / K / V)',['Query / Key / Value · 独立 Linear(4 → 4)','3 × [B,T,4]；各权重 [4,4]，均无偏置'],'purple',tip='对应 W_query、W_key、W_value 三个可学习线性投影。')
+box(1280,420,500,90,'② 注意力头拆分 (Split Heads)',['view + transpose: [B,T,4] → [B,2,T,2]','每个头均保留序列长度 T；每头特征维度为 2'],'purple')
+box(1280,550,500,100,'③ 缩放点积注意力得分',['QKᵀ / √d_head → [B,2,T,T]；d_head = 2','因果掩码 (Causal Mask)：未来位置 j > i → −∞'],'purple',tip='Scaled Dot-Product Attention：当前实现先对 QKᵀ 应用因果掩码，再除以 √d_head。')
+box(1280,690,500,90,'④ 注意力权重归一化 (Softmax)',['沿 key 维度归一化 → A: [B,2,T,T]','注意力随机失活 (Attention Dropout)'],'purple')
+box(1280,820,500,70,'⑤ 值向量加权聚合 (Weighted Sum)',['A @ V: [B,2,T,T] @ [B,2,T,2] → [B,2,T,2]'],'purple')
+box(1280,930,500,100,'⑥ 多头拼接与输出投影',['Concat Heads → 拼接结果 [B,T,4]','out_proj: Linear(4 → 4)，含偏置 → [B,T,4]'],'purple')
+rect(1280,1060,500,260,'#334155')
+text(1298,1093,'可学习参数分布 · 312',20,'text',600)
+rows=[('词元嵌入 24 + 位置嵌入 24','48'),('自注意力：Q/K/V 48 + 输出投影 20','68'),('前馈网络：4×16+16 + 16×4+4','148'),('层归一化：3 × (γ4 + β4)','24'),('语言模型头：6×4，无偏置','24')]
+for i,(name,value) in enumerate(rows):
+    text(1298,1128+i*31,name,17,'muted')
+    text(1760,1128+i*31,value,18,'cyan',600,'end')
+text(1298,1304,'mask 是 buffer；Dropout / GELU 无可学习参数',16,'muted')
+
+# Compact reading key; the diagram focuses on GPT computation only.
+text(40,1395,'读图约定',18,'text',600)
+for x,color,label in [(155,'cyan','模型前向'),(380,'rose','残差连接'),(605,'amber','自回归反馈'),(870,'gray','细节展开')]:
+    arrow(f'M{x} 1389 H{x+40}',color,color=='gray');text(x+53,1395,label,17,'muted')
+text(1170,1395,'B：批大小  ·  T：序列长度  ·  本例 B=1，T=4→5',17,'muted')
+text(40,1440,'实例设定：随机初始化，未训练；Dropout = 0，图中残差公式按此简写；嵌入与语言模型头权重独立；无 KV Cache。',18,'muted')
+text(40,1480,'依据当前 gpt2toy.py 实现：126 / 181 / 322 / 382 / 421 / 503 / 821  ·  参数量与张量形状已核验  ·  2026-11-02',16,'muted')
+put('</svg>')
+svg='\n'.join(lines)
+ET.fromstring(svg)
+(OUT/'gpt2toy-architecture.svg').write_text(svg,encoding='utf-8')
+
+# Preserve the architecture-diagram skill's export implementation and pinned CDN scripts.
+template=Path('C:/Users/qiuxueliang/.agents/skills/architecture-diagram/resources/template.html').read_text(encoding='utf-8')
+cdn='\n'.join(re.findall(r'<script src=.*?</script>',template)).replace('<script src=', '<script defer src=')
+export_script=template[template.rfind('  <script>'):template.rfind('</body>')]
+export_script=export_script.replace("'diagram.png'","'gpt2toy-architecture.png'").replace("'diagram.pdf'","'gpt2toy-architecture.pdf'")
+html='''<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GPT2Toy · 整体架构</title>'''+cdn+'''
+<style>
+*{box-sizing:border-box}body{margin:0;background:#020617;color:#e2e8f0;font:16px "Segoe UI","Microsoft YaHei",sans-serif;padding:32px}.container{max-width:1900px;margin:auto}header{display:flex;align-items:center;gap:18px;margin:0 0 20px}h1{font-size:24px;margin:0}a{color:#67e8f9}.toolbar{display:flex;gap:8px;margin-left:auto;align-items:center}.toolbar-actions{display:none;gap:8px}.toolbar.expanded .toolbar-actions{display:flex}button{background:#142238;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:8px 12px;cursor:pointer}button:hover{border-color:#22d3ee}.toolbar-toggle{font-size:20px}.controls{display:flex;gap:8px;align-items:center;margin:12px 0}.hint{color:#a3b3c9;font-size:14px}.viewport{overflow:auto;border:1px solid #27374f;border-radius:14px}svg{display:block;width:100%;height:auto;min-width:1000px}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}.card{background:#0b1426;border:1px solid #27374f;border-radius:12px;padding:20px;line-height:1.8}.card h2{font-size:18px;margin:0 0 8px;color:#34d399}.card p{margin:0;color:#a3b3c9}.sources{line-height:2;color:#a3b3c9;margin-top:18px} @media(max-width:900px){body{padding:16px}.cards{grid-template-columns:1fr}header{flex-wrap:wrap}}@media print{.toolbar,.controls{display:none!important}body{padding:0}}
+</style></head><body><div class="container" id="report-container"><header><h1>GPT2Toy 架构阅读器</h1><span class="hint">从总览到计算细节；悬停节点查看说明</span><div class="toolbar"><div class="toolbar-actions"><button onclick="copyAsImage(this)">复制图片</button><button onclick="downloadPNG(this)">PNG</button><button onclick="downloadPDF(this)">PDF</button></div><button class="toolbar-toggle" onclick="this.parentElement.classList.toggle('expanded')" aria-label="导出选项">⋯</button></div></header>
+<div class="controls"><button onclick="zoom('100%')">适应宽度</button><button onclick="zoom('1860px')">原始尺寸</button><button onclick="zoom('2400px')">放大细节</button><span class="hint">静态图可离线阅读；工具栏导出需加载 CDN。亦可直接打开下方现成 PNG / SVG。</span></div>
+<div class="viewport">'''+svg+'''</div><div class="cards">
+<article class="card"><h2>自注意力与前馈网络</h2><p>因果自注意力（Causal Self-Attention）在当前位置及历史位置之间聚合信息；逐位置前馈网络（Position-wise FFN / MLP）独立变换每个位置的特征。两者共享同一条 4 维残差流。</p></article>
+<article class="card"><h2>前置层归一化与残差连接</h2><p>Pre-LN 把层归一化放在注意力或前馈子层之前；恒等旁路保留子层输入，再与子层输出相加。LayerNorm 沿特征维计算统计量，学习缩放 γ 与平移 β；最终层归一化位于全部解码器块之后。</p></article>
+<article class="card"><h2>语言模型头与自回归生成</h2><p>语言模型头（LM Head）把隐藏状态投影为每个位置的词表得分（logits）。生成时只取最后位置，用贪婪解码选出下一词元，追加后再次前向。本例未实现 KV Cache，每步重新计算上下文。</p></article>
+</div><div class="sources">文件：<a href="gpt2toy-architecture.png">高清 PNG</a> · <a href="gpt2toy-architecture.svg">SVG 矢量图</a><br>源码：<a href="../gpt2toy.py">gpt2toy.py</a>。图中专业术语对应当前实现；参数总数与张量形状已通过 CPU 前向核验。</div>
+</div><script>function zoom(w){document.querySelector('.viewport svg').style.width=w}</script>'''+export_script+'</body></html>'
+(OUT/'gpt2toy-architecture.html').write_text(html,encoding='utf-8')
+print('Generated SVG + HTML; XML valid.')

@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1860" height="1510" viewBox="0 0 1860 1510" role="img" aria-labelledby="title desc">
+<title id="title">GPT2Toy 整体架构与张量数据流</title>
+<desc id="desc">GPT 解码器架构：词元与绝对位置嵌入、前置层归一化、因果多头自注意力、逐位置前馈网络、残差连接、语言模型头与自回归生成。</desc>
+<style>text{font-family:"Segoe UI","Microsoft YaHei",sans-serif} .node:hover rect{stroke-width:2.5}</style>
+<defs>
+<marker id="cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#22d3ee"/></marker>
+<marker id="green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#34d399"/></marker>
+<marker id="purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#a78bfa"/></marker>
+<marker id="amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#fbbf24"/></marker>
+<marker id="rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#fb7185"/></marker>
+<marker id="gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#64748b"/></marker>
+<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#12203a" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="1860" height="1510" fill="#020617"/><rect width="1860" height="1510" fill="url(#grid)"/>
+<text x="40" y="56" font-size="38" fill="#e2e8f0" font-weight="700" text-anchor="start" >GPT2Toy</text>
+<text x="245" y="56" font-size="29" fill="#e2e8f0" font-weight="500" text-anchor="start" >解码器式 Transformer · 核心架构</text>
+<text x="40" y="94" font-size="19" fill="#a3b3c9" font-weight="400" text-anchor="start" >Decoder-only  /  Pre-LayerNorm  /  Causal Self-Attention  /  Autoregressive Generation</text>
+<rect x="40" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="56" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >词表大小 V</text>
+<text x="300" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >6</text>
+<rect x="340" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="356" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >上下文长度 C</text>
+<text x="600" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >6</text>
+<rect x="640" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="656" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >嵌入维度 d_model</text>
+<text x="900" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >4</text>
+<rect x="940" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="956" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >头数 × 每头维度</text>
+<text x="1200" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >2 × 2</text>
+<rect x="1240" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="1256" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >解码器层数 L</text>
+<text x="1500" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >1</text>
+<rect x="1540" y="122" width="280" height="59" rx="12" fill="#0b1426" stroke="#27374f" stroke-width="1.4"/>
+<text x="1556" y="158" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >可学习参数</text>
+<text x="1800" y="159" font-size="24" fill="#22d3ee" font-weight="600" text-anchor="end" >312</text>
+<rect x="40" y="210" width="500" height="1140" rx="12" fill="#071020" stroke="#27374f" stroke-width="1.4"/>
+<text x="62" y="244" font-size="17" fill="#22d3ee" font-weight="700" text-anchor="start" >01</text>
+<text x="98" y="244" font-size="23" fill="#e2e8f0" font-weight="600" text-anchor="start" >GPT 前向与自回归生成</text>
+<text x="62" y="274" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >GPTModel · 词元序列 → 隐状态 → 词表得分</text>
+<rect x="590" y="210" width="600" height="1140" rx="12" fill="#071020" stroke="#27374f" stroke-width="1.4"/>
+<text x="612" y="244" font-size="17" fill="#34d399" font-weight="700" text-anchor="start" >02</text>
+<text x="648" y="244" font-size="23" fill="#e2e8f0" font-weight="600" text-anchor="start" >解码器块 (Decoder Block)</text>
+<text x="612" y="274" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >TransformerBlock × 1 · 前置层归一化 Pre-LN</text>
+<rect x="1240" y="210" width="580" height="1140" rx="12" fill="#071020" stroke="#27374f" stroke-width="1.4"/>
+<text x="1262" y="244" font-size="17" fill="#a78bfa" font-weight="700" text-anchor="start" >03</text>
+<text x="1298" y="244" font-size="23" fill="#e2e8f0" font-weight="600" text-anchor="start" >因果多头自注意力</text>
+<text x="1262" y="274" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >Causal Multi-Head Self-Attention · 2 heads × 2 dims</text>
+<path d="M290 380 V410" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M290 480 V502 H180 V535" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M180 655 V673 H290 V690" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M400 655 V673 H290 V690" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M290 780 V810" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M290 900 V950" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M290 1020 V1070" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M290 1160 V1210" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<path d="M80 1260 H60 V443 H80" fill="none" stroke="#fbbf24" stroke-width="2" marker-end="url(#amber)"/>
+<path d="M500 855 H565 V245 H587" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#gray)" stroke-dasharray="6 6"/>
+<g class="node">
+<rect x="80" y="290" width="420" height="90" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="98" y="319" font-size="20" fill="#22d3ee" font-weight="600" text-anchor="start" >分词器 (Tokenizer)</text>
+<text x="98" y="347" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >SimpleTokenizerV2 · 正则拆词与标点分隔</text>
+<text x="98" y="371" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >“Hello, I am” → 词元 ID [2,3,4,5]</text>
+</g>
+<g class="node">
+<title>generate_text_simple 每步输入整个裁剪后的上下文。</title>
+<rect x="80" y="410" width="420" height="70" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="98" y="439" font-size="20" fill="#22d3ee" font-weight="600" text-anchor="start" >上下文窗口 (Context Window)</text>
+<text x="98" y="467" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >idx[:, -6:] → 输入词元索引 [B,T]</text>
+</g>
+<g class="node">
+<rect x="80" y="535" width="200" height="120" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="98" y="564" font-size="20" fill="#22d3ee" font-weight="600" text-anchor="start" >词元嵌入</text>
+<text x="98" y="592" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Token Embedding</text>
+<text x="98" y="616" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >tok_emb [6,4]</text>
+<text x="98" y="640" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >→ [B,T,4]</text>
+</g>
+<g class="node">
+<title>Learned Absolute Positional Embedding：用 0..T-1 查可学习的位置表；不根据 Token ID 查表。</title>
+<rect x="300" y="535" width="200" height="120" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="318" y="564" font-size="19" fill="#22d3ee" font-weight="600" text-anchor="start" >绝对位置嵌入</text>
+<text x="318" y="592" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Position Embedding</text>
+<text x="318" y="616" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >pos_emb [6,4]</text>
+<text x="318" y="640" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >→ [T,4]（可学习）</text>
+</g>
+<text x="300" y="518" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >arange(T)：0…T−1</text>
+<g class="node">
+<rect x="80" y="690" width="420" height="90" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="98" y="719" font-size="20" fill="#22d3ee" font-weight="600" text-anchor="start" >嵌入融合 (Embedding Sum)</text>
+<text x="98" y="747" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >词元向量 + 位置向量 → [B,T,4]</text>
+<text x="98" y="771" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >嵌入随机失活：Dropout (drop_emb)</text>
+</g>
+<g class="node">
+<rect x="80" y="810" width="420" height="90" rx="12" fill="#0b1426" stroke="#34d399" stroke-width="1.4"/>
+<text x="98" y="839" font-size="20" fill="#34d399" font-weight="600" text-anchor="start" >解码器块 (TransformerBlock)</text>
+<text x="98" y="867" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >前置层归一化 · 因果自注意力 · 前馈网络</text>
+<text x="98" y="891" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >n_layers = 1；沿残差流依次堆叠</text>
+</g>
+<g class="node">
+<rect x="80" y="950" width="420" height="70" rx="12" fill="#0b1426" stroke="#34d399" stroke-width="1.4"/>
+<text x="98" y="979" font-size="20" fill="#34d399" font-weight="600" text-anchor="start" >最终层归一化 (final_norm)</text>
+<text x="98" y="1007" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Final LayerNorm · [B,T,4] → [B,T,4]</text>
+</g>
+<g class="node">
+<rect x="80" y="1070" width="420" height="90" rx="12" fill="#0b1426" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="98" y="1099" font-size="20" fill="#22d3ee" font-weight="600" text-anchor="start" >语言模型头 (LM Head)</text>
+<text x="98" y="1127" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >out_head: Linear(4 → 6)，无偏置</text>
+<text x="98" y="1151" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >词表得分 logits: [B,T,6]；权重未绑定</text>
+</g>
+<g class="node">
+<rect x="80" y="1210" width="420" height="100" rx="12" fill="#0b1426" stroke="#fbbf24" stroke-width="1.4"/>
+<text x="98" y="1239" font-size="20" fill="#fbbf24" font-weight="600" text-anchor="start" >贪婪解码 (Greedy Decoding)</text>
+<text x="98" y="1267" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >最后位置 logits[:, -1, :] → [B,6]</text>
+<text x="98" y="1291" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >argmax → 下一词元 [B,1] → 追加到序列</text>
+</g>
+<text x="100" y="1330" font-size="16" fill="#fbbf24" font-weight="400" text-anchor="start" >自回归反馈：追加词元，重新预测下一词元</text>
+<path d="M930 295 V330" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 420 V470" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 560 V595" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 640 V680" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 750 V790" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 880 V930" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 1050 V1085" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 1130 V1170" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 1240 V1280" fill="none" stroke="#34d399" stroke-width="2" marker-end="url(#green)"/>
+<path d="M930 299 H635 V710 H720" fill="none" stroke="#fb7185" stroke-width="2" marker-end="url(#rose)"/>
+<path d="M930 760 H665 V1200 H720" fill="none" stroke="#fb7185" stroke-width="2" marker-end="url(#rose)"/>
+<path d="M1140 515 H1214 V245 H1237" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#gray)" stroke-dasharray="6 6"/>
+<text x="930" y="293" font-size="18" fill="#34d399" font-weight="600" text-anchor="middle" >x: [B,T,4]</text>
+<g class="node">
+<rect x="720" y="330" width="420" height="90" rx="12" fill="#0b1426" stroke="#34d399" stroke-width="1.4"/>
+<text x="738" y="359" font-size="20" fill="#34d399" font-weight="600" text-anchor="start" >前置层归一化 (norm1)</text>
+<text x="738" y="387" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Pre-LayerNorm · 每个词元沿特征维归一化</text>
+<text x="738" y="411" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >γ ⊙ (x−μ) / √(σ²+10⁻⁵) + β</text>
+</g>
+<g class="node">
+<rect x="720" y="470" width="420" height="90" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="738" y="499" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >多头自注意力 (att)</text>
+<text x="738" y="527" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Multi-Head Self-Attention · 因果掩码</text>
+<text x="738" y="551" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >上下文信息聚合：[B,T,4] → [B,T,4]</text>
+</g>
+<rect x="720" y="595" width="420" height="45" rx="12" fill="#0b1426" stroke="#64748b" stroke-width="1.4"/>
+<text x="930" y="624" font-size="18" fill="#a3b3c9" font-weight="400" text-anchor="middle" >残差分支随机失活 (drop_shortcut)</text>
+<rect x="720" y="680" width="420" height="70" rx="12" fill="#0b1426" stroke="#fb7185" stroke-width="1.4"/>
+<text x="930" y="705" font-size="18" fill="#fb7185" font-weight="600" text-anchor="middle" >残差相加 ① (Residual Add)</text>
+<text x="930" y="733" font-size="19" fill="#e2e8f0" font-weight="400" text-anchor="middle" >x₁ = x + Attention(LN₁(x))</text>
+<g class="node">
+<rect x="720" y="790" width="420" height="90" rx="12" fill="#0b1426" stroke="#34d399" stroke-width="1.4"/>
+<text x="738" y="819" font-size="20" fill="#34d399" font-weight="600" text-anchor="start" >前置层归一化 (norm2)</text>
+<text x="738" y="847" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Pre-LayerNorm · [B,T,4] → [B,T,4]</text>
+<text x="738" y="871" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >可学习缩放 γ[4] 与平移 β[4]</text>
+</g>
+<g class="node">
+<rect x="720" y="930" width="420" height="120" rx="12" fill="#0b1426" stroke="#34d399" stroke-width="1.4"/>
+<text x="738" y="959" font-size="20" fill="#34d399" font-weight="600" text-anchor="start" >逐位置前馈网络 (FFN / MLP)</text>
+<text x="738" y="987" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Linear(4 → 16)  →  GELU  →  Linear(16 → 4)</text>
+<text x="738" y="1011" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >ff：[B,T,4] → [B,T,16] → [B,T,4]</text>
+<text x="738" y="1035" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >GELU：高斯误差线性单元（tanh 近似）</text>
+</g>
+<rect x="720" y="1085" width="420" height="45" rx="12" fill="#0b1426" stroke="#64748b" stroke-width="1.4"/>
+<text x="930" y="1114" font-size="18" fill="#a3b3c9" font-weight="400" text-anchor="middle" >残差分支随机失活 (drop_shortcut)</text>
+<rect x="720" y="1170" width="420" height="70" rx="12" fill="#0b1426" stroke="#fb7185" stroke-width="1.4"/>
+<text x="930" y="1195" font-size="18" fill="#fb7185" font-weight="600" text-anchor="middle" >残差相加 ② (Residual Add)</text>
+<text x="930" y="1223" font-size="19" fill="#e2e8f0" font-weight="400" text-anchor="middle" >x₂ = x₁ + FFN(LN₂(x₁))</text>
+<text x="930" y="1307" font-size="20" fill="#34d399" font-weight="600" text-anchor="middle" >残差流输出 x₂: [B,T,4]</text>
+<text x="620" y="555" font-size="17" fill="#fb7185" font-weight="400" text-anchor="middle" transform="rotate(-90 620 555)">Identity shortcut · x</text>
+<text x="650" y="1000" font-size="17" fill="#fb7185" font-weight="400" text-anchor="middle" transform="rotate(-90 650 1000)">Identity shortcut · x₁</text>
+<path d="M1530 380 V420" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#purple)"/>
+<path d="M1530 510 V550" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#purple)"/>
+<path d="M1530 650 V690" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#purple)"/>
+<path d="M1530 780 V820" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#purple)"/>
+<path d="M1530 890 V930" fill="none" stroke="#a78bfa" stroke-width="2" marker-end="url(#purple)"/>
+<g class="node">
+<title>对应 W_query、W_key、W_value 三个可学习线性投影。</title>
+<rect x="1280" y="290" width="500" height="90" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="319" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >① 查询 / 键 / 值投影 (Q / K / V)</text>
+<text x="1298" y="347" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Query / Key / Value · 独立 Linear(4 → 4)</text>
+<text x="1298" y="371" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >3 × [B,T,4]；各权重 [4,4]，均无偏置</text>
+</g>
+<g class="node">
+<rect x="1280" y="420" width="500" height="90" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="449" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >② 注意力头拆分 (Split Heads)</text>
+<text x="1298" y="477" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >view + transpose: [B,T,4] → [B,2,T,2]</text>
+<text x="1298" y="501" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >每个头均保留序列长度 T；每头特征维度为 2</text>
+</g>
+<g class="node">
+<title>Scaled Dot-Product Attention：当前实现先对 QKᵀ 应用因果掩码，再除以 √d_head。</title>
+<rect x="1280" y="550" width="500" height="100" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="579" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >③ 缩放点积注意力得分</text>
+<text x="1298" y="607" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >QKᵀ / √d_head → [B,2,T,T]；d_head = 2</text>
+<text x="1298" y="631" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >因果掩码 (Causal Mask)：未来位置 j &gt; i → −∞</text>
+</g>
+<g class="node">
+<rect x="1280" y="690" width="500" height="90" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="719" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >④ 注意力权重归一化 (Softmax)</text>
+<text x="1298" y="747" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >沿 key 维度归一化 → A: [B,2,T,T]</text>
+<text x="1298" y="771" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >注意力随机失活 (Attention Dropout)</text>
+</g>
+<g class="node">
+<rect x="1280" y="820" width="500" height="70" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="849" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >⑤ 值向量加权聚合 (Weighted Sum)</text>
+<text x="1298" y="877" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >A @ V: [B,2,T,T] @ [B,2,T,2] → [B,2,T,2]</text>
+</g>
+<g class="node">
+<rect x="1280" y="930" width="500" height="100" rx="12" fill="#0b1426" stroke="#a78bfa" stroke-width="1.4"/>
+<text x="1298" y="959" font-size="20" fill="#a78bfa" font-weight="600" text-anchor="start" >⑥ 多头拼接与输出投影</text>
+<text x="1298" y="987" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >Concat Heads → 拼接结果 [B,T,4]</text>
+<text x="1298" y="1011" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >out_proj: Linear(4 → 4)，含偏置 → [B,T,4]</text>
+</g>
+<rect x="1280" y="1060" width="500" height="260" rx="12" fill="#0b1426" stroke="#334155" stroke-width="1.4"/>
+<text x="1298" y="1093" font-size="20" fill="#e2e8f0" font-weight="600" text-anchor="start" >可学习参数分布 · 312</text>
+<text x="1298" y="1128" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >词元嵌入 24 + 位置嵌入 24</text>
+<text x="1760" y="1128" font-size="18" fill="#22d3ee" font-weight="600" text-anchor="end" >48</text>
+<text x="1298" y="1159" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >自注意力：Q/K/V 48 + 输出投影 20</text>
+<text x="1760" y="1159" font-size="18" fill="#22d3ee" font-weight="600" text-anchor="end" >68</text>
+<text x="1298" y="1190" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >前馈网络：4×16+16 + 16×4+4</text>
+<text x="1760" y="1190" font-size="18" fill="#22d3ee" font-weight="600" text-anchor="end" >148</text>
+<text x="1298" y="1221" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >层归一化：3 × (γ4 + β4)</text>
+<text x="1760" y="1221" font-size="18" fill="#22d3ee" font-weight="600" text-anchor="end" >24</text>
+<text x="1298" y="1252" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >语言模型头：6×4，无偏置</text>
+<text x="1760" y="1252" font-size="18" fill="#22d3ee" font-weight="600" text-anchor="end" >24</text>
+<text x="1298" y="1304" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >mask 是 buffer；Dropout / GELU 无可学习参数</text>
+<text x="40" y="1395" font-size="18" fill="#e2e8f0" font-weight="600" text-anchor="start" >读图约定</text>
+<path d="M155 1389 H195" fill="none" stroke="#22d3ee" stroke-width="2" marker-end="url(#cyan)"/>
+<text x="208" y="1395" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >模型前向</text>
+<path d="M380 1389 H420" fill="none" stroke="#fb7185" stroke-width="2" marker-end="url(#rose)"/>
+<text x="433" y="1395" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >残差连接</text>
+<path d="M605 1389 H645" fill="none" stroke="#fbbf24" stroke-width="2" marker-end="url(#amber)"/>
+<text x="658" y="1395" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >自回归反馈</text>
+<path d="M870 1389 H910" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#gray)" stroke-dasharray="6 6"/>
+<text x="923" y="1395" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >细节展开</text>
+<text x="1170" y="1395" font-size="17" fill="#a3b3c9" font-weight="400" text-anchor="start" >B：批大小  ·  T：序列长度  ·  本例 B=1，T=4→5</text>
+<text x="40" y="1440" font-size="18" fill="#a3b3c9" font-weight="400" text-anchor="start" >实例设定：随机初始化，未训练；Dropout = 0，图中残差公式按此简写；嵌入与语言模型头权重独立；无 KV Cache。</text>
+<text x="40" y="1480" font-size="16" fill="#a3b3c9" font-weight="400" text-anchor="start" >依据当前 gpt2toy.py 实现：126 / 181 / 322 / 382 / 421 / 503 / 821  ·  参数量与张量形状已核验  ·  2026-11-02</text>
+</svg>
