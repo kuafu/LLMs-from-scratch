@@ -86,7 +86,7 @@ class GPTToyRegressionTests(unittest.TestCase):
         expected_markers = []
         for phase, name, depth, shape in calls:
             arrow = ">>>" if phase == "begin" else "<<<"
-            label = ("in_idx" if phase == "begin" else "logits") if name == "GPTModel" else ("x" if phase == "begin" else "out")
+            label = ("input_ids" if phase == "begin" else "logits") if name == "GPTModel" else ("x" if phase == "begin" else "out")
             indent = "  " + "    " * depth
             expected_markers.append(f"{indent}{arrow} {name}.forward {phase:<5} | {label}.shape={shape}")
         actual_markers = [line for line in stdout.getvalue().splitlines()
@@ -121,8 +121,8 @@ class GPTToyRegressionTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             with mock.patch.object(torch.Tensor, "cpu", side_effect=AssertionError("unexpected cpu copy")), \
                     mock.patch.object(torch.Tensor, "tolist", side_effect=AssertionError("unexpected list conversion")):
-                logits = model(ids)
-                generated = generate_text_simple(model, ids, max_new_tokens=2, context_size=4)
+                logits = model(input_ids=ids)
+                generated = generate_text_simple(model, generated_ids=ids, max_new_tokens=2, context_size=4)
 
         self.assertEqual(tuple(logits.shape), (2, 3, 12))
         self.assertEqual(tuple(generated.shape), (2, 5))
@@ -179,7 +179,7 @@ class GPTToyRegressionTests(unittest.TestCase):
 
                 self.assertIsNot(trace.record, old_record)
                 self.assertEqual(old_record, old_snapshot)
-                self.assertEqual(trace.record["embeddings"]["in_idx"], [7, 8, 9])
+                self.assertEqual(trace.record["embeddings"]["input_ids"], [7, 8, 9])
                 self.assertEqual(len(trace.record["blocks"]), n_layers)
                 self.assertFalse(contains_tensor(trace.record))
 
@@ -223,7 +223,7 @@ class GPTToyRegressionTests(unittest.TestCase):
 
         def capture_context(event, **values):
             if event == "generation_start":
-                observed_contexts.append(values["idx_cond"].clone())
+                observed_contexts.append(values["context_ids"].clone())
 
         actual = generate_text_simple(
             model, prompt, max_new_tokens=4, context_size=3, trace=capture_context,

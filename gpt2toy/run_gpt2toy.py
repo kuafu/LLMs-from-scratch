@@ -67,7 +67,7 @@ def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEX
 
     # 2. 准备输入文本与编码张量
     encoded = tokenizer.encode(start_context)
-    encoded_tensor = torch.tensor(encoded, dtype=torch.long).unsqueeze(0)
+    input_ids = torch.tensor(encoded, dtype=torch.long).unsqueeze(0)
 
     print("=" * 78)
     print("                         [IN: 输入准备阶段]")
@@ -75,7 +75,7 @@ def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEX
     print(f"  * 原始输入文本 (start_context) : \"{start_context}\"")
     print(f"  * Tokenizer 编码序列 (IDs)     : {encoded}")
     print(f"  * 逐词映射明细                 : " + ", ".join(f"'{tokenizer.int_to_str[i]}' -> {i}" for i in encoded))
-    print(f"  * 封装为 Batch 张量            : {encoded_tensor.tolist()} | 形状: {tuple(encoded_tensor.shape)} (B=1, T={len(encoded)})")
+    print(f"  * 封装为 Batch 张量            : {input_ids.tolist()} | 形状: {tuple(input_ids.shape)} (B=1, T={len(encoded)})")
     print("=" * 78)
 
     # 3. 自回归生成循环 (同时展示模块数据流与每步关键张量/注意力权重数值，并录制快照)
@@ -83,7 +83,7 @@ def main(output_dir=None, *, config=None, vocab=None, start_context=START_CONTEX
     trace = TeachingTrace(tokenizer, steps_records=steps_records)
     out = generate_text_simple(
         model=model,
-        idx=encoded_tensor,
+        generated_ids=input_ids,
         max_new_tokens=max_new_tokens,
         context_size=cfg["context_length"],
         trace=trace,

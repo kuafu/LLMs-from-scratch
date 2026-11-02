@@ -227,27 +227,27 @@ class GPTModel(nn.Module):
         self.final_norm = LayerNorm(cfg["emb_dim"])
         self.out_head = nn.Linear(cfg["emb_dim"], cfg["vocab_size"], bias=False)
 
-    def forward(self, in_idx, trace=None):
+    def forward(self, input_ids, trace=None):
         """将整数 Token IDs [B,T] 映射为未归一化的词表得分 logits [B,T,Vocab]。
 
         T 不超过位置表容量。此处输出全部位置；生成循环随后选取末尾位置。
         可选 trace 接收入口、各计算阶段与出口事件，用于教学打印和快照。
         """
-        _, seq_len = in_idx.shape
+        _, seq_len = input_ids.shape
         if trace is not None:
             # begin：教学 trace 在此打印 GPTModel.forward 的入口。
-            trace("model_start", in_idx=in_idx, training=self.training)
+            trace("model_start", input_ids=input_ids, training=self.training)
 
-        tok_embeds = self.tok_emb(in_idx)
+        tok_embeds = self.tok_emb(input_ids)
         # Learned Absolute Positional Embedding（可学习绝对位置嵌入）使用局部位置 0..T-1。
-        pos_indices = torch.arange(seq_len, device=in_idx.device)
+        pos_indices = torch.arange(seq_len, device=input_ids.device)
         pos_embeds = self.pos_emb(pos_indices)
         # 广播相加（Broadcast Addition）：[B,T,D] + [T,D] -> [B,T,D]。
         x_emb = tok_embeds + pos_embeds
         x = self.drop_emb(x_emb)
         if trace is not None:
             trace(
-                "embeddings", module=self, in_idx=in_idx, pos_indices=pos_indices,
+                "embeddings", module=self, input_ids=input_ids, pos_indices=pos_indices,
                 tok_embeds=tok_embeds, pos_embeds=pos_embeds, x_emb=x_emb, x=x,
             )
             trace("blocks_start", num_blocks=len(self.trf_blocks))
@@ -263,29 +263,32 @@ class GPTModel(nn.Module):
         logits = self.out_head(x_norm_final)
         if trace is not None:
             # end：教学 trace 在此打印出口，随后返回 logits。
-            trace("model_end", module=self, in_idx=in_idx, logits=logits)
+            trace("model_end", module=self, input_ids=input_ids, logits=logits)
         return logits
 
 
-def generate_text_simple(model, idx, max_new_tokens, context_size, trace=None):
+def generate_text_simple(model, generated_ids, max_new_tokens, context_size, trace=None):
     """自回归生成（Autoregressive Generation）与贪婪解码（Greedy Decoding）。
 
-    每次裁剪上下文、预测下一个 Token，再把选中的 ID 追加到 [B,T] 序列。
+    generated_ids 是从提示词开始、包含后续生成 Token 的完整 [B,T] 序列。
+    每次裁剪为 context_ids、预测 next_token_ids，再追加回 generated_ids。
     每步重算窗口，不使用键值缓存（Key-Value Cache，KV Cache）。生成固定的
     max_new_tokens 步；遇到 <|endoftext|> 不会自动提前停止。
     """
     for step in range(max_new_tokens):
         # 滑动窗口（Sliding Window）：窗口移位后，模型会从 0 重新编号局部位置。
-        idx_cond = idx[:, -context_size:]
+        context_ids = generated_ids[:, -context_size:]
         if trace is not None:
-            trace("generation_start", step=step, max_new_tokens=max_new_tokens, idx=idx, idx_cond=idx_cond)
+            trace("generation_start", step=step, max_new_tokens=max_new_tokens,
+                  generated_ids=generated_ids, context_ids=context_ids)
         # no_grad 关闭梯度记录；Dropout 是否启用仍取决于调用者设置的 train/eval 模式。
         with torch.no_grad():
-            logits = model(idx_cond, trace=trace) if trace is not None else model(idx_cond)
+            logits = model(context_ids, trace=trace) if trace is not None else model(context_ids)
         logits_last = logits[:, -1, :]
         # 下一个 Token 预测（Next-Token Prediction，NTP）：贪婪选择无需先计算 Softmax。
-        idx_next = torch.argmax(logits_last, dim=-1, keepdim=True)
-        idx = torch.cat((idx, idx_next), dim=1)
+        next_token_ids = torch.argmax(logits_last, dim=-1, keepdim=True)
+        generated_ids = torch.cat((generated_ids, next_token_ids), dim=1)
         if trace is not None:
-            trace("generation_end", step=step, logits_last=logits_last, idx_next=idx_next, idx=idx)
-    return idx
+            trace("generation_end", step=step, logits_last=logits_last,
+                  next_token_ids=next_token_ids, generated_ids=generated_ids)
+    return generated_ids

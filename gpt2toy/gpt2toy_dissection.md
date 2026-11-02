@@ -18,7 +18,7 @@
 
 ```mermaid
 flowchart TD
-    In["输入序列 in_idx<br/>形状: (B=1, T)"] --> TokEmb["词嵌入查表 tok_emb<br/>weight: (6, 4) → 输出: (1, T, 4)"]
+    In["输入序列 input_ids<br/>形状: (B=1, T)"] --> TokEmb["词嵌入查表 tok_emb<br/>weight: (6, 4) → 输出: (1, T, 4)"]
     In --> PosEmb["位置嵌入查表 pos_emb<br/>weight: (5, 4) → 输出: (T, 4)"]
     TokEmb --> AddEmb["广播逐元素相加: x = tok_emb + pos_emb<br/>形状: (1, T, 4)"]
     PosEmb --> AddEmb
@@ -200,7 +200,7 @@ flowchart TD
 
 - **当前步骤输入文本**: `"Hello, I am"`
 
-- **输入 Token IDs (`in_idx`)**: `[2, 3, 4, 5]` (形状 `(B=1, T=4)`)
+- **输入 Token IDs (`input_ids`)**: `[2, 3, 4, 5]` (形状 `(B=1, T=4)`)
 
 - **位置编号 (`pos_indices`)**: `[0, 1, 2, 3]`
 
@@ -396,7 +396,7 @@ $$X_{t, d} = W_{\text{tok}}[\text{in\_idx}_t, d] + W_{\text{pos}}[t, d]$$
 
 - **当前步骤输入文本**: `"Hello, I am <|endoftext|>"`
 
-- **输入 Token IDs (`in_idx`)**: `[2, 3, 4, 5, 1]` (形状 `(B=1, T=5)`)
+- **输入 Token IDs (`input_ids`)**: `[2, 3, 4, 5, 1]` (形状 `(B=1, T=5)`)
 
 - **位置编号 (`pos_indices`)**: `[0, 1, 2, 3, 4]`
 

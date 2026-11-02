@@ -261,18 +261,18 @@ def _inspect_feed_forward(*, x, h1, h2, out, verbose, show_data, token_labels, r
         })
 
 
-def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, x_emb, x, verbose, show_data, token_labels, record_dict):
+def _inspect_embeddings(*, module, input_ids, pos_indices, tok_embeds, pos_embeds, x_emb, x, verbose, show_data, token_labels, record_dict):
     """检查 Token/位置嵌入及相加后的输入；快照只包含 batch[0]。"""
-    batch_size, seq_len = in_idx.shape
+    batch_size, seq_len = input_ids.shape
     t_labels = token_labels
     max_lbl = max((len(lbl) for lbl in t_labels), default=0)
 
     if verbose:
         print(f"  ┌── [1. 输入嵌入阶段 (Input Embeddings)]")
-        print(f"  │   ├── 输入 Token IDs in_idx: {in_idx.tolist()} | 形状 (B={batch_size}, T={seq_len})")
+        print(f"  │   ├── 输入 Token IDs input_ids: {input_ids.tolist()} | 形状 (B={batch_size}, T={seq_len})")
 
     if verbose:
-        print(f"  │   ├── 词嵌入查表 tok_emb(in_idx): 从 tok_emb.weight ({module.tok_emb.num_embeddings}×{module.tok_emb.embedding_dim}) 按行抽取 -> 形状 (B={batch_size}, T={seq_len}, emb_dim={module.tok_emb.embedding_dim})")
+        print(f"  │   ├── 词嵌入查表 tok_emb(input_ids): 从 tok_emb.weight ({module.tok_emb.num_embeddings}×{module.tok_emb.embedding_dim}) 按行抽取 -> 形状 (B={batch_size}, T={seq_len}, emb_dim={module.tok_emb.embedding_dim})")
         if show_data:
             print_2d_tensor(tok_embeds[0], indent="  │   │     ", row_labels=t_labels)
 
@@ -286,7 +286,7 @@ def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, 
         if show_data:
             for t_idx in range(seq_len):
                 lbl = t_labels[t_idx].ljust(max_lbl)
-                tid = in_idx[0, t_idx].item()
+                tid = input_ids[0, t_idx].item()
                 t_str = format_1d(tok_embeds[0, t_idx])
                 p_str = format_1d(pos_embeds[t_idx])
                 x_str = format_1d(x[0, t_idx])
@@ -294,7 +294,7 @@ def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, 
         print(f"  └── [输入嵌入阶段完毕]\n  │")
 
     record_dict.update({
-        "in_idx": in_idx[0].detach().cpu().tolist(),
+        "input_ids": input_ids[0].detach().cpu().tolist(),
         "pos_indices": pos_indices.detach().cpu().tolist(),
         "tok_embeds": tok_embeds[0].detach().cpu().tolist(),
         "pos_embeds": pos_embeds.detach().cpu().tolist(),
@@ -303,9 +303,9 @@ def _inspect_embeddings(*, module, in_idx, pos_indices, tok_embeds, pos_embeds, 
     })
 
 
-def _inspect_output(*, module, in_idx, logits, verbose, show_data, token_labels, record_dict):
+def _inspect_output(*, module, input_ids, logits, verbose, show_data, token_labels, record_dict):
     """展示全序列各位置的词表 Logits 与 Softmax 概率，并保存首个样本。"""
-    batch_size, seq_len = in_idx.shape
+    batch_size, seq_len = input_ids.shape
     t_labels = token_labels
     probs_all = torch.softmax(logits, dim=-1)
 
@@ -325,23 +325,23 @@ def _inspect_output(*, module, in_idx, logits, verbose, show_data, token_labels,
     })
 
 
-def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
+def _start_generation(tokenizer, step, max_new_tokens, generated_ids, context_ids, verbose):
     """建立当前自回归步的实际条件输入快照，并记录完整前缀信息。"""
-    current_seq_len = idx.shape[1]
-    current_ids = idx[0].tolist()
+    current_seq_len = generated_ids.shape[1]
+    current_ids = generated_ids[0].tolist()
     current_text = tokenizer.decode(current_ids)
 
     if verbose:
         print("\n" + "=" * 78)
     if verbose:
-        print(f"  [自回归生成步骤 (Step {step + 1}/{max_new_tokens})]  累计序列长度 = {current_seq_len}, 本步上下文 T = {idx_cond.shape[1]}")
+        print(f"  [自回归生成步骤 (Step {step + 1}/{max_new_tokens})]  累计序列长度 = {current_seq_len}, 本步上下文 T = {context_ids.shape[1]}")
     if verbose:
         print(f"  累计文本: \"{current_text}\" (Token IDs: {current_ids})")
-        print(f"  本步实际输入: {tokenizer.decode(idx_cond[0].tolist())!r} (Token IDs: {idx_cond[0].tolist()})")
+        print(f"  本步实际输入: {tokenizer.decode(context_ids[0].tolist())!r} (Token IDs: {context_ids[0].tolist()})")
     if verbose:
         print("=" * 78)
 
-    cond_ids = idx_cond[0].tolist()
+    cond_ids = context_ids[0].tolist()
     token_labels = [
         f"t{pos}[ID={tid}:'{tokenizer.int_to_str.get(tid, '<|unk|>')}']"
         for pos, tid in enumerate(cond_ids)
@@ -361,13 +361,13 @@ def _start_generation(tokenizer, step, max_new_tokens, idx, idx_cond, verbose):
     return step_rec
 
 
-def _finish_generation(tokenizer, step, logits_last, idx_next, idx, step_rec, verbose):
+def _finish_generation(tokenizer, step, logits_last, next_token_ids, generated_ids, step_rec, verbose):
     """由末位置 Logits 记录候选概率、Argmax Token 与追加 Token 后的序列。"""
     token_labels = step_rec["token_labels"]
-    current_seq_len = idx.shape[1] - 1
+    current_seq_len = generated_ids.shape[1] - 1
 
     probs = torch.softmax(logits_last, dim=-1)[0]  # (vocab_size,)
-    next_token_id = idx_next[0, 0].item()
+    next_token_id = next_token_ids[0, 0].item()
     next_word = tokenizer.decode([next_token_id])
 
     # 打印决策分析
@@ -394,11 +394,11 @@ def _finish_generation(tokenizer, step, logits_last, idx_next, idx, step_rec, ve
             "is_selected": tid == next_token_id,
         })
     if verbose:
-        print(f"  │   ├── 贪婪采样结果: idx_next = {idx_next.tolist()} -> Token ID = {next_token_id} (\"{next_word}\")")
-    new_ids = idx[0].tolist()
+        print(f"  │   ├── 贪婪采样结果: next_token_ids = {next_token_ids.tolist()} -> Token ID = {next_token_id} (\"{next_word}\")")
+    new_ids = generated_ids[0].tolist()
     new_text = tokenizer.decode(new_ids)
     if verbose:
-        print(f"  │   └── 序列拼接更新: 长度 T 由 {current_seq_len} -> {idx.shape[1]} | 新序列 IDs: {new_ids}")
+        print(f"  │   └── 序列拼接更新: 长度 T 由 {current_seq_len} -> {generated_ids.shape[1]} | 新序列 IDs: {new_ids}")
     if verbose:
         print(f"  └── [步骤 {step + 1} 完成] -> 当前累计生成文本: \"{new_text}\"")
 
@@ -464,10 +464,10 @@ class TeachingTrace:
             indent = "  " + "    " * len(self._forward_stack)
             print(f"{indent}<<< {name}.forward end   | {output_name}.shape={tuple(tensor.shape)}")
 
-    def _on_model_start(self, in_idx, training=False):
+    def _on_model_start(self, input_ids, training=False):
         """开始一次模型前向记录，按 batch[0] 输入建立 Token 标签与阶段容器。"""
         self._forward_stack = []
-        self._begin_forward("GPTModel", in_idx, input_name="in_idx")
+        self._begin_forward("GPTModel", input_ids, input_name="input_ids")
         if not self._generating:
             self.record = {}
         self.record["training"] = training
@@ -477,11 +477,11 @@ class TeachingTrace:
         self._block = None
         self._block_idx = -1
         if self.tokenizer is None:
-            self._labels = [f"t{i}" for i in range(in_idx.shape[1])]
+            self._labels = [f"t{i}" for i in range(input_ids.shape[1])]
         else:
             self._labels = [
                 f"t{pos}[ID={tid}:'{self.tokenizer.int_to_str.get(tid, '<|unk|>')}']"
-                for pos, tid in enumerate(in_idx[0].tolist())
+                for pos, tid in enumerate(input_ids[0].tolist())
             ]
 
     def _on_embeddings(self, **values):
@@ -605,16 +605,16 @@ class TeachingTrace:
                         token_labels=self._labels, record_dict=self.record["output_stage"])
         self._end_forward("GPTModel", values["logits"], output_name="logits")
 
-    def _on_generation_start(self, step, max_new_tokens, idx, idx_cond):
+    def _on_generation_start(self, step, max_new_tokens, generated_ids, context_ids):
         """开启自回归步记录；快照区分累计序列与本步实际上下文。"""
         if self.tokenizer is None:
             raise ValueError("TeachingTrace 的生成教学输出需要 tokenizer")
-        self.record = _start_generation(self.tokenizer, step, max_new_tokens, idx, idx_cond, self.verbose)
+        self.record = _start_generation(self.tokenizer, step, max_new_tokens, generated_ids, context_ids, self.verbose)
         self._generating = True
 
-    def _on_generation_end(self, step, logits_last, idx_next, idx):
+    def _on_generation_end(self, step, logits_last, next_token_ids, generated_ids):
         """完成当前步的预测快照，按需归档后清除生成态标记。"""
-        _finish_generation(self.tokenizer, step, logits_last, idx_next, idx, self.record, self.verbose)
+        _finish_generation(self.tokenizer, step, logits_last, next_token_ids, generated_ids, self.record, self.verbose)
         if self.steps_records is not None:
             self.steps_records.append(self.record)
         self._generating = False

@@ -93,7 +93,7 @@ def generate_markdown_report(trace_data):
     md.append("---\n## 1. 全局拓扑与张量维度演化图\n")
     md.append("```mermaid")
     md.append("flowchart TD")
-    md.append(f'    In["输入序列 in_idx<br/>形状: (B=1, T)"] --> TokEmb["词嵌入查表 tok_emb<br/>weight: ({vocab_size}, {d}) → 输出: (1, T, {d})"]')
+    md.append(f'    In["输入序列 input_ids<br/>形状: (B=1, T)"] --> TokEmb["词嵌入查表 tok_emb<br/>weight: ({vocab_size}, {d}) → 输出: (1, T, {d})"]')
     md.append(f'    In --> PosEmb["位置嵌入查表 pos_emb<br/>weight: ({context_length}, {d}) → 输出: (T, {d})"]')
     md.append(f'    TokEmb --> AddEmb["广播逐元素相加: x = tok_emb + pos_emb<br/>形状: (1, T, {d})"]')
     md.append('    PosEmb --> AddEmb')
@@ -224,7 +224,7 @@ def generate_markdown_report(trace_data):
 
         md.append(f"---\n## {sec_num}. 自回归 Step {step_num} 全链路前向传播剖析\n")
         md.append(f"- **当前步骤输入文本**: `\"{_md_text(step['input_text'])}\"`\n")
-        md.append(f"- **输入 Token IDs (`in_idx`)**: `{in_ids}` (形状 `(B=1, T={T})`)\n")
+        md.append(f"- **输入 Token IDs (`input_ids`)**: `{in_ids}` (形状 `(B=1, T={T})`)\n")
         md.append(f"- **位置编号 (`pos_indices`)**: `{emb['pos_indices']}`\n")
 
         # 阶段 1: 嵌入查表与逐元素相加
@@ -965,7 +965,7 @@ function renderStepView(stepIdx) {
       </div>
       <div class="stage-body">
         <div class="formula-box">
-          数学公式: X[t, d] = tok_emb.weight[in_idx[t], d] + pos_emb.weight[t, d]  (将鼠标悬停在右侧结果单元格上可查看逐元素相加验算)
+          数学公式: X[t, d] = tok_emb.weight[input_ids[t], d] + pos_emb.weight[t, d]  (将鼠标悬停在右侧结果单元格上可查看逐元素相加验算)
         </div>
         <table class="mat-table">
           <thead>

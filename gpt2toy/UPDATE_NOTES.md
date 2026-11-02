@@ -92,6 +92,12 @@ gpt2toy/
 `gpt2toy.py` 仅依赖 PyTorch，不导入数据、诊断或导出模块，也不调整终端编码。
 不传入 trace 时，前向传播只返回 logits；生成函数只接受并返回 Token ID 张量，支持整个 batch。
 
+模型入口 `input_ids` 是词表中的 Token IDs。生成函数的 `generated_ids` 从提示词开始，
+逐步追加新 Token；`context_ids` 是本步裁剪后的上下文，`next_token_ids` 是选出的下一词。
+这些张量均为整数 IDs，位置编号仍由 `pos_indices` 单独表示。
+自定义 trace 的对应参数及嵌入快照字段也使用新名称（`in_idx` 改为 `input_ids`，
+`idx` / `idx_cond` / `idx_next` 改为 `generated_ids` / `context_ids` / `next_token_ids`）。
+
 ```python
 import torch
 from gpt2toy import GPTModel, generate_text_simple
@@ -103,16 +109,16 @@ from gpt2toy_data import SimpleTokenizerV2
 torch.manual_seed(SEED)
 model = GPTModel(TOY_CONFIG).eval()
 tokenizer = SimpleTokenizerV2(TOY_VOCAB)
-ids = torch.tensor([tokenizer.encode(START_CONTEXT)])  # [2, 3, 4, 5]
+input_ids = torch.tensor([tokenizer.encode(START_CONTEXT)])  # [2, 3, 4, 5]
 repeated_ids = tokenizer.encode(REPEATED_CONTEXT)       # [2, 3, 4, 5, 4]
 
-logits = model(ids)  # 无打印、快照、CPU 转换或导出。
+logits = model(input_ids=input_ids)  # 无打印、快照、CPU 转换或导出。
 out = generate_text_simple(
-    model, ids, max_new_tokens=2, context_size=TOY_CONFIG["context_length"]
+    model, generated_ids=input_ids, max_new_tokens=2, context_size=TOY_CONFIG["context_length"]
 )
 
 trace = TeachingTrace(verbose=False)
-traced_logits = model(ids, trace=trace)
+traced_logits = model(input_ids=input_ids, trace=trace)
 assert torch.equal(logits, traced_logits)
 attention = trace.record["blocks"][0]["att"]
 ```
