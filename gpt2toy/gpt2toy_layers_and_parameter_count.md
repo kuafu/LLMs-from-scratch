@@ -29,6 +29,8 @@ self.trf_blocks = nn.ModuleList([
 
 一个块内部包含多头注意力、FFN、两处 LayerNorm 和两条残差连接。通常整个块算一层，其中的每个 `Linear` 不再分别计入模型介绍的层数；输入 Embedding、最终 LayerNorm 和输出头通常也不计入。
 
+两次残差更新的计算过程、张量形状，以及与 GPT-2、Llama 实现的对照，参见 [Transformer 的残差连接](RESIDUAL_CONNECTIONS.md)。
+
 每个块拥有独立参数。假设输入为 1 条文本、3 个 token，隐藏维度为 4，把 `n_layers` 改成 3，隐藏状态依次经过三个块，形状始终为 `[1, 3, 4]`，数值逐层更新。层数增加会增加参数量，隐藏维度保持为 4。
 
 ## 参数量的计数规则
