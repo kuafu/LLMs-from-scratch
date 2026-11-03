@@ -203,6 +203,7 @@ class TransformerBlock(nn.Module):
             trace("block_line", step=3, code="att_raw = self.att(x_norm1, trace=trace)",
                   inputs={"x_norm1": x_norm1}, output_name="att_raw", out=att_raw)
         att_out = self.drop_shortcut(att_raw)
+        assert torch.equal(att_out, att_raw), "Dropout 改变了 att_raw 的数值"
         if trace is not None:
             trace("block_line", step=4, code="att_out = self.drop_shortcut(att_raw)",
                   inputs={"att_raw": att_raw}, output_name="att_out", out=att_out,
@@ -232,6 +233,7 @@ class TransformerBlock(nn.Module):
             trace("block_line", step=8, code="ff_raw = self.ff(x_norm2, trace=trace)",
                   inputs={"x_norm2": x_norm2}, output_name="ff_raw", out=ff_raw)
         ff_out = self.drop_shortcut(ff_raw)
+        assert torch.equal(ff_out, ff_raw), "Dropout 改变了 ff_raw 的数值"
         if trace is not None:
             trace("block_line", step=9, code="ff_out = self.drop_shortcut(ff_raw)",
                   inputs={"ff_raw": ff_raw}, output_name="ff_out", out=ff_out,
