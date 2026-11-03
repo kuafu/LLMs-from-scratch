@@ -189,19 +189,55 @@ class TransformerBlock(nn.Module):
 
         # 第一条残差更新：x1 = x + Dropout(MHA(LN1(x)))，旁路保留归一化前的 x。
         shortcut1 = x
+        if trace is not None:
+            trace("block_line", step=1, code="shortcut1 = x", inputs={"x": x},
+                  output_name="shortcut1", out=shortcut1, note="保存引用，数值不变；后续计算不原地修改它。")
         x_norm1 = self.norm1(x, trace=trace)
-        att_out = self.drop_shortcut(self.att(x_norm1, trace=trace))
+        if trace is not None:
+            trace("block_line", step=2, code="x_norm1 = self.norm1(x, trace=trace)",
+                  inputs={"x": x}, output_name="x_norm1", out=x_norm1)
+        att_raw = self.att(x_norm1, trace=trace)
+        if trace is not None:
+            trace("block_line", step=3, code="att_raw = self.att(x_norm1, trace=trace)",
+                  inputs={"x_norm1": x_norm1}, output_name="att_raw", out=att_raw)
+        att_out = self.drop_shortcut(att_raw)
+        if trace is not None:
+            trace("block_line", step=4, code="att_out = self.drop_shortcut(att_raw)",
+                  inputs={"att_raw": att_raw}, output_name="att_out", out=att_out,
+                  note=f"Dropout: training={self.drop_shortcut.training}, p={self.drop_shortcut.p}")
         x_after_res1 = shortcut1 + att_out
         if trace is not None:
+            trace("block_line", step=5, code="x_after_res1 = shortcut1 + att_out",
+                  inputs={"shortcut1": shortcut1, "att_out": att_out},
+                  output_name="x_after_res1", out=x_after_res1)
             trace("residual", name="res1", shortcut=shortcut1, sublayer_out=att_out, out=x_after_res1)
 
         # 第二条残差更新：x2 = x1 + Dropout(FFN(LN2(x1)))。
         shortcut2 = x_after_res1
+        if trace is not None:
+            trace("block_line", step=6, code="shortcut2 = x_after_res1",
+                  inputs={"x_after_res1": x_after_res1}, output_name="shortcut2", out=shortcut2,
+                  note="保存引用，数值不变；后续计算不原地修改它。")
         x_norm2 = self.norm2(x_after_res1, trace=trace)
-        ff_out = self.drop_shortcut(self.ff(x_norm2, trace=trace))
+        if trace is not None:
+            trace("block_line", step=7, code="x_norm2 = self.norm2(x_after_res1, trace=trace)",
+                  inputs={"x_after_res1": x_after_res1}, output_name="x_norm2", out=x_norm2)
+        ff_raw = self.ff(x_norm2, trace=trace)
+        if trace is not None:
+            trace("block_line", step=8, code="ff_raw = self.ff(x_norm2, trace=trace)",
+                  inputs={"x_norm2": x_norm2}, output_name="ff_raw", out=ff_raw)
+        ff_out = self.drop_shortcut(ff_raw)
+        if trace is not None:
+            trace("block_line", step=9, code="ff_out = self.drop_shortcut(ff_raw)",
+                  inputs={"ff_raw": ff_raw}, output_name="ff_out", out=ff_out,
+                  note=f"Dropout: training={self.drop_shortcut.training}, p={self.drop_shortcut.p}")
         x_out = shortcut2 + ff_out
         if trace is not None:
+            trace("block_line", step=10, code="x_out = shortcut2 + ff_out",
+                  inputs={"shortcut2": shortcut2, "ff_out": ff_out}, output_name="x_out", out=x_out)
             trace("residual", name="res2", shortcut=shortcut2, sublayer_out=ff_out, out=x_out)
+            trace("block_line", step=11, code="return x_out", inputs={"x_out": x_out},
+                  output_name="返回值", out=x_out, note="直接返回，数值不变。")
             trace("block_end", out=x_out)
         return x_out
 

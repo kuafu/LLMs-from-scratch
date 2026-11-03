@@ -506,6 +506,27 @@ class TeachingTrace:
         if self.verbose:
             print(f"  │   ┌── [TransformerBlock {self._block_idx}] 输入张量: (B={x.shape[0]}, T={x.shape[1]}, emb_dim={x.shape[2]})")
 
+    def _on_block_line(self, step, code, inputs, output_name, out, note=""):
+        """逐行展示 Block 的真实操作数和结果；全 batch、全特征保留 8 位小数。"""
+        if not self.verbose:
+            return
+        indent = "  " + "    " * len(self._forward_stack)
+        print(f"{indent}[Block {self._block_idx} 逐行 {step:02d}] {code}")
+        if note:
+            print(f"{indent}  {note}")
+        if not self.show_data:
+            return
+        for phase, tensors in (("执行前", inputs), ("执行后", {output_name: out})):
+            for name, tensor in tensors.items():
+                print(f"{indent}  {phase} {name}.shape={tuple(tensor.shape)} (小数点后 8 位):")
+                for batch_idx in range(tensor.shape[0]):
+                    labels = [
+                        f"b{batch_idx}/" + (self._labels[t] if batch_idx == 0 else f"t{t}")
+                        for t in range(tensor.shape[1])
+                    ]
+                    print_2d_tensor(tensor[batch_idx], indent=indent + "    ",
+                                    row_labels=labels, precision=8)
+
     def _on_layer_norm_start(self, x):
         """进入 LayerNorm.forward，按其实际父调用确定缩进。"""
         self._begin_forward("LayerNorm", x)
