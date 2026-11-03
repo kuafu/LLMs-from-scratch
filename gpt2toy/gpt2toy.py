@@ -196,6 +196,8 @@ class TransformerBlock(nn.Module):
         if trace is not None:
             trace("block_line", step=2, code="x_norm1 = self.norm1(x, trace=trace)",
                   inputs={"x": x}, output_name="x_norm1", out=x_norm1)
+
+        # 前向传播 MHA
         att_raw = self.att(x_norm1, trace=trace)
         if trace is not None:
             trace("block_line", step=3, code="att_raw = self.att(x_norm1, trace=trace)",
@@ -213,15 +215,18 @@ class TransformerBlock(nn.Module):
             trace("residual", name="res1", shortcut=shortcut1, sublayer_out=att_out, out=x_after_res1)
 
         # 第二条残差更新：x2 = x1 + Dropout(FFN(LN2(x1)))。
-        shortcut2 = x_after_res1
+        x = x_after_res1
+        shortcut2 = x
         if trace is not None:
-            trace("block_line", step=6, code="shortcut2 = x_after_res1",
-                  inputs={"x_after_res1": x_after_res1}, output_name="shortcut2", out=shortcut2,
+            trace("block_line", step=6, code="shortcut2 = x",
+                  inputs={"x": x}, output_name="shortcut2", out=shortcut2,
                   note="保存引用，数值不变；后续计算不原地修改它。")
-        x_norm2 = self.norm2(x_after_res1, trace=trace)
+        x_norm2 = self.norm2(x, trace=trace)
         if trace is not None:
-            trace("block_line", step=7, code="x_norm2 = self.norm2(x_after_res1, trace=trace)",
-                  inputs={"x_after_res1": x_after_res1}, output_name="x_norm2", out=x_norm2)
+            trace("block_line", step=7, code="x_norm2 = self.norm2(x, trace=trace)",
+                  inputs={"x": x}, output_name="x_norm2", out=x_norm2)
+            
+        # 前馈网络 FFN 
         ff_raw = self.ff(x_norm2, trace=trace)
         if trace is not None:
             trace("block_line", step=8, code="ff_raw = self.ff(x_norm2, trace=trace)",
