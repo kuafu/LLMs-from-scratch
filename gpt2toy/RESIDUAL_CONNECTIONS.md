@@ -151,6 +151,8 @@ Dropout 不改变值，不代表整个 Attention 或 FFN 分支没有更新。�
 | [Meta 官方 Llama 2 实现](https://github.com/meta-llama/llama/blob/main/llama/model.py#L345-L369) | `TransformerBlock.forward` | Attention 后一次，FFN 后一次 | RMSNorm |
 | [Hugging Face Llama](https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L268-L285) | `LlamaDecoderLayer.forward` | Attention 后一次，MLP 后一次 | RMSNorm |
 | [Hugging Face Qwen2](https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2/modeling_qwen2.py#L247-L264) | `Qwen2DecoderLayer.forward` | Attention 后一次，MLP 后一次 | RMSNorm |
+| [llama.cpp 的 GPT-2 实现](https://github.com/ggml-org/llama.cpp/blob/master/src/models/gpt2.cpp#L73-L118) | GPT-2 的 `graph` 构造函数 | Attention 后一次，FFN 后一次 | LayerNorm |
+| [llama.cpp 的 Llama 实现](https://github.com/ggml-org/llama.cpp/blob/master/src/models/llama.cpp#L114-L207) | Llama 的 `graph` 构造函数 | Attention 后一次，FFN 后一次 | RMSNorm |
 
 这里的 MLP 对应本文的 FFN 子层。将归一化方式统一记作 `Norm`、省略 Dropout 等细节，可以用同一个骨架理解这些标准 Block：
 
@@ -168,3 +170,37 @@ Hugging Face Llama 的 `post_attention_layernorm` 位于第一次残差相加之
 Hugging Face GPT-2 支持可选交叉注意力。当模型设置 `add_cross_attention=True`，并在前向中实际传入 `encoder_hidden_states` 执行交叉注意力时，会在自注意力和 FFN 之间增加一次残差更新，使该 Block 共有三次。仅配置开关为真、但未执行该分支时，仍为两次。具体条件和相加位置见 [GPT2Block 的交叉注意力分支](https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py#L257-L279)。
 
 对其他模型，应检查它的 Block 前向实现，分别确认旁路取自哪个张量、子层基于哪个输入计算，以及最终在哪里相加。
+
+## 7. llama.cpp 中的两次残差更新
+
+llama.cpp 是支持多种模型架构的推理实现。这里分别对照其 `src/models/gpt2.cpp` 和 `src/models/llama.cpp`，不能把其中某一架构的残差结构直接套用到它支持的全部模型。
+
+它使用 GGML 构建计算图，Python 中的张量相加在源码中表现为 `ggml_add` 节点。构图代码中的局部变量名与当前 toy 不同，但上述两种架构仍然先计算 Attention 的残差结果，再用该结果进入 FFN。
+
+### Llama：`inpSA` 和 `ffn_inp` 分别保存两次旁路
+
+在 [Llama 的逐层构图代码](https://github.com/ggml-org/llama.cpp/blob/master/src/models/llama.cpp#L114-L207) 中，`inpL` 表示当前层的输入，先由 `inpSA` 保存其引用。Attention 分支基于 RMSNorm 后的输入计算，结果由 `cur` 指向。两处残差相加的源码是：
+
+```cpp
+ggml_tensor * ffn_inp = ggml_add(ctx0, cur, inpSA);
+cur = ggml_add(ctx0, cur, ffn_inp);
+```
+
+这两行之间还有 RMSNorm 和 FFN 的构图，不能将它们理解为连续对同一个 `cur` 相加：
+
+| 位置 | 当时 `cur` 的含义 | 旁路 | 相加后的含义 |
+| --- | --- | --- | --- |
+| 第一处相加 | Attention 分支输出 | `inpSA`，即 `x0` | `ffn_inp`，即 `x1` |
+| 第二处相加 | 基于 `ffn_inp` 归一化后计算的 FFN 分支输出 | `ffn_inp`，即 `x1` | 更新后的 `cur`，即 `x2` |
+
+对于普通 Llama 的非 MoE 分支，FFN 使用 SiLU 门控结构。第二处相加之后还有可选控制向量处理 `build_cvec`，再将结果作为下一层输入；这里的 `x2` 指残差相加完成时的结果。
+
+若最后一层只需计算选定 token 的输出，源码可能先用 `ggml_get_rows` 同时选取 Attention 输出和旁路中的对应 token，再执行第一次残差相加。残差仍是对应 token 的逐元素相加，两次更新的依赖顺序保持不变。
+
+### GPT-2：第一条旁路直接使用 `inpL`
+
+在 [GPT-2 的逐层构图代码](https://github.com/ggml-org/llama.cpp/blob/master/src/models/gpt2.cpp#L73-L118) 中，第一次相加的旁路使用 `inpL`，结果同样保存为 `ffn_inp`；第二次相加把 FFN 输出加回 `ffn_inp`。它使用普通 LayerNorm 和 GELU FFN，和本项目的 GPT-2 Toy 更接近。
+
+这里统计的是每个 Block 内的两次残差更新。GPT-2 构图开头还会把 token 嵌入和位置嵌入相加，那是输入嵌入融合，不计入 Block 的这两次残差更新。
+
+以上结论来自 2026-11-03 对官方源码的静态核对，说明残差结构及张量依赖对应；未运行 llama.cpp，也未验证它与本项目在不同权重、精度或量化设置下的逐元素数值一致性。
