@@ -61,6 +61,7 @@ git clone --depth 1 https://github.com/rasbt/LLMs-from-scratch.git
 - [故障排查指南](./troubleshooting.md)
 - [LLM 术语与缩写速查](./LLM术语与缩写速查.md)
 - [Python 对象调用与源码定位参考](./Python对象调用与源码定位参考.md)
+- [PyTorch：torch.arange 用法与位置编号](./pytorch/torch_arange.md)
 
 
 | 章节标题                                                   | 主要代码（快速访问）                                                                                                             | 全部代码与补充资料             |

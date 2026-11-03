@@ -100,6 +100,17 @@ def main():
                 f"{x_emb[0, t, d].item():.8f}"
             )
 
+    print("----------")
+    print("tok_embeds:")
+    print(tok_embeds)
+    print("pos_embeds:")
+    print(pos_embeds)
+    print("x_emb:")
+    print(x_emb)
+    # x_emb: tensor([[[ 0.8019, -0.1523,  0.2112, -3.8990],
+    #      [ 3.2070, -0.3950,  1.5879, -1.3988],
+    #      [-0.2702, -0.4158, -0.6664, -0.2872],
+    #      [ 1.1022, -1.9784,  1.7434, -0.8990]]])
     return x_emb
 
 
