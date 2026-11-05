@@ -44,6 +44,94 @@ class SimplifiedNoGrad:
 
 Python 在进入 `with` 时调用 `__enter__()`，退出时调用 `__exit__()`。即使代码块抛出异常，也会调用退出方法来恢复状态。恢复的是**进入前的状态**，并非总是开启；所以嵌套 `no_grad` 时，退出内层仍处于关闭状态。梯度模式是线程局部的，不会自动改变其他线程的状态。
 
+## `torch.is_grad_enabled()` 如何获取线程状态？
+
+`torch.is_grad_enabled()` 查询当前线程是否开启**反向模式**的梯度记录，返回 `True` 或 `False`。它查询的是线程的模式，不是某个张量的 `requires_grad`。张量运算是否记录计算图还取决于输入等其他条件。
+
+在当前环境的 PyTorch `2.14.1+cpu` 中，它是一个 C++ 扩展提供的内置函数，因此 `inspect.getsource(torch.is_grad_enabled)` 无法像读取普通 Python 函数那样显示实现。对应的源码版本可以用 `torch.version.git_version` 查看。下面以当前版本的源码为例，展示主要调用链：
+
+```text
+torch.is_grad_enabled()                     Python 接口
+    ↓
+is_grad_enabled()                           C++ 扩展入口
+    ↓
+GradMode::is_enabled()
+    ↓
+AutogradState::get_tls_state().get_grad_mode()
+    ↓
+当前线程的 AutogradState.grad_mode_
+```
+
+### C++ 扩展入口
+
+[autograd/init.cpp](https://github.com/pytorch/pytorch/blob/5c4886908584029761b579af026dcfb627c84070/torch/csrc/autograd/init.cpp) 的实现中，入口调用 `GradMode::is_enabled()`，根据结果返回 Python 布尔值；以下摘录省略了异常处理宏：
+
+```cpp
+if (GradMode::is_enabled()) {
+  Py_RETURN_TRUE;
+} else {
+  Py_RETURN_FALSE;
+}
+```
+
+### 获取线程局部状态
+
+[GradMode.cpp](https://github.com/pytorch/pytorch/blob/5c4886908584029761b579af026dcfb627c84070/c10/core/GradMode.cpp) 中，读取操作获取当前线程的状态对象，再读取其梯度模式：
+
+```cpp
+bool GradMode::is_enabled() {
+  return AutogradState::get_tls_state().get_grad_mode();
+}
+```
+
+[AutogradState.cpp](https://github.com/pytorch/pytorch/blob/5c4886908584029761b579af026dcfb627c84070/c10/core/AutogradState.cpp) 用 C++ 的 `thread_local` 声明状态对象，读取函数返回该对象：
+
+```cpp
+thread_local AutogradState autograd_state_tls = AutogradState(
+    /* grad_mode */ true,
+    /* inference_mode */ false,
+    /* fw_grad_mode */ true,
+    /* multithreading_enabled */ true);
+
+AutogradState& AutogradState::get_tls_state() {
+  return autograd_state_tls;
+}
+```
+
+同一个变量名在每个线程中对应各自的状态。`get_grad_mode()` 返回状态对象的 `grad_mode_` 字段；`no_grad` 通过设置当前线程的梯度模式来改变它，并在退出时恢复之前的值。具体代码以所安装版本为准。
+
+### 多线程示例
+
+```python
+import threading
+import torch
+
+
+def worker():
+    print("子线程:", torch.is_grad_enabled())
+
+
+print("主线程进入前:", torch.is_grad_enabled())
+with torch.no_grad():
+    print("主线程 no_grad 内:", torch.is_grad_enabled())
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()  # 等子线程打印完成
+
+print("主线程退出后:", torch.is_grad_enabled())
+```
+
+在新启动的普通 Python 进程中，通常输出：
+
+```text
+主线程进入前: True
+主线程 no_grad 内: False
+子线程: True
+主线程退出后: True
+```
+
+主线程的 `no_grad` 不会改变子线程的梯度模式；退出后主线程恢复为进入前的值。如果主线程进入前已关闭梯度记录，退出后也会保持关闭。
+
 ## 模型推理
 
 ```python

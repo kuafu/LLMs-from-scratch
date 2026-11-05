@@ -5,8 +5,10 @@ from torch import nn
 
 
 def main():
-    x = torch.tensor(2.0, requires_grad=True)
+    x = torch.tensor([2.0], requires_grad=True)
     print("进入前:", torch.is_grad_enabled())
+    print(x.shape)
+    print(x.size())
 
     with torch.no_grad():
         y = x * 3
