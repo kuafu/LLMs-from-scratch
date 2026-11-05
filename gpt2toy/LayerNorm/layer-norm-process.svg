@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1820" viewBox="0 0 1800 1820">
+<title>层归一化 LayerNorm：从 x 到 x_norm1 的计算过程</title>
+<desc>使用当前 gpt2toy 首次 norm1 前向的 float32 数值，展示每个 token 独立沿特征维计算均值、方差、带 epsilon 的标准差、标准化和可学习仿射变换。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#2563eb"/></marker></defs>
+<rect x="0" y="0" width="1800" height="1820" rx="0" fill="#ffffff" stroke="#ffffff" stroke-width="1.5"/>
+<text x="60" y="63" font-family="Microsoft YaHei, sans-serif" font-size="40" font-weight="600" fill="#111827" text-anchor="start">层归一化的计算过程</text>
+<text x="1740" y="63" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="29" font-weight="600" fill="#2563eb" text-anchor="end">x_norm1 = self.norm1(x)</text>
+<text x="60" y="110" font-family="Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#64748b" text-anchor="start">Layer Normalization  ·  每个 token 的 4 个特征独立归一化  ·  dim = -1</text>
+<rect x="60" y="148" width="1680" height="252" rx="14" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+<text x="84" y="186" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="600" fill="#2563eb" text-anchor="start">输入：x</text>
+<text x="1714" y="186" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#64748b" text-anchor="end">shape = (B, T, D) = (1, 4, 4)</text>
+<text x="110" y="224" font-family="Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">token / ID</text>
+<text x="550" y="224" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d0</text>
+<text x="880" y="224" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d1</text>
+<text x="1210" y="224" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d2</text>
+<text x="1540" y="224" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d3</text>
+<rect x="80" y="232" width="1640" height="37" rx="6" fill="#eff6ff" stroke="#eff6ff" stroke-width="1.5"/>
+<text x="110" y="260" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="600" fill="#2563eb" text-anchor="start">Hello / 2</text>
+<text x="550" y="260" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.80185723</text>
+<text x="880" y="260" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.15227951</text>
+<text x="1210" y="260" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.21122205</text>
+<text x="1540" y="260" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-3.89896703</text>
+<text x="110" y="299" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">, / 3</text>
+<text x="550" y="299" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">3.20701933</text>
+<text x="880" y="299" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.39497244</text>
+<text x="1210" y="299" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">1.58786070</text>
+<text x="1540" y="299" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.39875591</text>
+<text x="110" y="338" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">I / 4</text>
+<text x="550" y="338" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.27022433</text>
+<text x="880" y="338" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.41580868</text>
+<text x="1210" y="338" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.66636026</text>
+<text x="1540" y="338" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.28722513</text>
+<text x="110" y="377" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">am / 5</text>
+<text x="550" y="377" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">1.10217988</text>
+<text x="880" y="377" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.97839832</text>
+<text x="1210" y="377" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">1.74340367</text>
+<text x="1540" y="377" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.89903867</text>
+<path d="M900 400 V446" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M370 556 V620" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1260 556 V620" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M680 690 H790" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1260 760 V795 H370 V830" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1260 795 V1040" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<circle cx="1260" cy="795" r="5" fill="#2563eb"/>
+<path d="M370 980 V1040" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M680 1110 H790" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1260 1180 V1250" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M680 1325 H790" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1260 1400 V1470" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="60" y="446" width="1680" height="110" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="84" y="482" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#2563eb" text-anchor="start">展开 Hello 这一行：x[0, 0, :]</text>
+<text x="900" y="525" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="27" font-weight="400" fill="#111827" text-anchor="middle">[0.80185723, -0.15227951, 0.21122205, -3.89896703]</text>
+<text x="390" y="596" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">x</text>
+<text x="1280" y="596" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">x</text>
+<rect x="60" y="620" width="620" height="140" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="84" y="656" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#2563eb" text-anchor="start">① 均值 mean（μ）</text>
+<text x="84" y="694" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#111827" text-anchor="start">mean = x.mean(dim=-1, keepdim=True)</text>
+<text x="84" y="735" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#2563eb" text-anchor="start">Hello: μ = sum(x) / 4 = -0.75954181</text>
+<text x="735" y="673" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="18" font-weight="400" fill="#64748b" text-anchor="middle">mean</text>
+<rect x="790" y="620" width="950" height="140" rx="14" fill="#faf5ff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="814" y="656" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#7c3aed" text-anchor="start">中心化：每个特征减去本行均值</text>
+<text x="814" y="694" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#111827" text-anchor="start">centered = x - mean</text>
+<text x="814" y="735" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">[1.56139898, 0.60726231, 0.97076386, -3.13942528]</text>
+<text x="715" y="785" font-family="Microsoft YaHei, sans-serif" font-size="18" font-weight="400" fill="#64748b" text-anchor="start">平方后求平均</text>
+<text x="1290" y="913" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#7c3aed" text-anchor="start">x - mean</text>
+<rect x="60" y="830" width="620" height="150" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="84" y="866" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#2563eb" text-anchor="start">② 总体方差 var（σ²）</text>
+<text x="84" y="899" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="18" font-weight="400" fill="#111827" text-anchor="start">var = x.var(-1, keepdim=True, unbiased=False)</text>
+<text x="84" y="934" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#111827" text-anchor="start">var = sum((x - mean)²) / D，D = 4</text>
+<text x="84" y="965" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#2563eb" text-anchor="start">Hello: var = 3.40127683</text>
+<text x="395" y="1019" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">var</text>
+<rect x="60" y="1040" width="620" height="140" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="84" y="1076" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#2563eb" text-anchor="start">③ 归一化除数 std</text>
+<text x="84" y="1110" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#111827" text-anchor="start">std = sqrt(var + eps), eps = 0.00001</text>
+<text x="84" y="1154" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#2563eb" text-anchor="start">Hello: std = 1.84425783</text>
+<text x="735" y="1091" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="middle">std</text>
+<rect x="790" y="1040" width="950" height="140" rx="14" fill="#faf5ff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="814" y="1076" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#7c3aed" text-anchor="start">④ 标准化 norm_x</text>
+<text x="814" y="1110" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">norm_x = (x - mean) / std</text>
+<text x="814" y="1154" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">[0.84662730, 0.32927191, 0.52637100, -1.70227027]</text>
+<text x="1290" y="1227" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="start">norm_x</text>
+<rect x="60" y="1250" width="620" height="150" rx="14" fill="#f0fdf4" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="84" y="1286" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#059669" text-anchor="start">可学习参数：所有 token 共享</text>
+<text x="84" y="1323" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">scale = γ = [1, 1, 1, 1]</text>
+<text x="84" y="1361" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">shift = β = [0, 0, 0, 0]</text>
+<text x="655" y="1384" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="18" font-weight="400" fill="#64748b" text-anchor="end">shape = (4,)</text>
+<text x="735" y="1306" font-family="Microsoft YaHei, sans-serif" font-size="21" font-weight="400" fill="#64748b" text-anchor="middle">γ, β</text>
+<rect x="790" y="1250" width="950" height="150" rx="14" fill="#f0fdf4" stroke="#a7f3d0" stroke-width="1.5"/>
+<text x="814" y="1286" font-family="Microsoft YaHei, sans-serif" font-size="25" font-weight="600" fill="#059669" text-anchor="start">⑤ 缩放和平移 → out / x_norm1</text>
+<text x="814" y="1323" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">out = self.scale * norm_x + self.shift</text>
+<text x="814" y="1361" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#111827" text-anchor="start">[0.84662730, 0.32927191, 0.52637100, -1.70227027]</text>
+<text x="814" y="1387" font-family="Microsoft YaHei, sans-serif" font-size="18" font-weight="400" fill="#64748b" text-anchor="start">当前 scale = 1、shift = 0，因此 out = norm_x。</text>
+<rect x="60" y="1470" width="1680" height="252" rx="14" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+<text x="84" y="1508" font-family="Microsoft YaHei, sans-serif" font-size="28" font-weight="600" fill="#059669" text-anchor="start">输出：x_norm1（其余三行各自按同样过程计算）</text>
+<text x="1714" y="1508" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#64748b" text-anchor="end">shape = (B, T, D) = (1, 4, 4)</text>
+<text x="110" y="1546" font-family="Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">token / ID</text>
+<text x="550" y="1546" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d0</text>
+<text x="880" y="1546" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d1</text>
+<text x="1210" y="1546" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d2</text>
+<text x="1540" y="1546" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="20" font-weight="400" fill="#64748b" text-anchor="middle">d3</text>
+<rect x="80" y="1554" width="1640" height="37" rx="6" fill="#f0fdf4" stroke="#f0fdf4" stroke-width="1.5"/>
+<text x="110" y="1582" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="600" fill="#059669" text-anchor="start">Hello / 2</text>
+<text x="550" y="1582" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.84662730</text>
+<text x="880" y="1582" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.32927191</text>
+<text x="1210" y="1582" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.52637100</text>
+<text x="1540" y="1582" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.70227027</text>
+<text x="110" y="1621" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">, / 3</text>
+<text x="550" y="1621" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">1.38053966</text>
+<text x="880" y="1621" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.64356953</text>
+<text x="1210" y="1621" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.47066706</text>
+<text x="1540" y="1621" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.20763731</text>
+<text x="110" y="1660" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">I / 4</text>
+<text x="550" y="1660" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.88163120</text>
+<text x="880" y="1660" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.03726525</text>
+<text x="1210" y="1660" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.61869180</text>
+<text x="1540" y="1660" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.77432591</text>
+<text x="110" y="1699" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="start">am / 5</text>
+<text x="550" y="1699" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">0.74106884</text>
+<text x="880" y="1699" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-1.31535089</text>
+<text x="1210" y="1699" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">1.16911364</text>
+<text x="1540" y="1699" font-family="Consolas, Microsoft YaHei, sans-serif" font-size="23" font-weight="400" fill="#111827" text-anchor="middle">-0.59483147</text>
+<text x="60" y="1764" font-family="Microsoft YaHei, sans-serif" font-size="22" font-weight="400" fill="#64748b" text-anchor="start">每行使用自己的 mean、var、std；三者完整形状为 (1, 4, 1)，通过广播作用于四个特征。</text>
+<text x="60" y="1800" font-family="Microsoft YaHei, sans-serif" font-size="19" font-weight="400" fill="#64748b" text-anchor="start">数值来源：当前 gpt2toy.py 首次 norm1 前向计算  ·  float32  ·  显示到小数点后 8 位</text>
+</svg>

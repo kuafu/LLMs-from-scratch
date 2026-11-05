@@ -24,10 +24,15 @@ class LayerNorm(nn.Module):
         self.shift = nn.Parameter(torch.zeros(emb_dim))
 
     def forward(self, x):
+        # mean：每个 token 的 D 个特征的均值，形状 (B, T, 1)，保留末维便于广播。
         mean = x.mean(dim=-1, keepdim=True)
+        # var（variance）：各特征与均值之差的平方的平均值，除以 D，形状 (B, T, 1)。
         var = x.var(dim=-1, keepdim=True, unbiased=False)
+        # std：加 eps 后开平方得到的归一化除数，避免除零，形状 (B, T, 1)。
         std = torch.sqrt(var + self.eps)
+        # norm_x：每个特征减去所属 token 的均值，再除以 std，形状仍为 (B, T, D)。
         norm_x = (x - mean) / std
+        # out：标准化后逐特征乘可学习缩放 scale、加可学习平移 shift，形状 (B, T, D)。
         out = self.scale * norm_x + self.shift
 
         print(f"\neps = {self.eps}")
