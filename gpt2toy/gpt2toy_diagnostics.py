@@ -99,7 +99,7 @@ def print_residual_comparison(shortcut, sub_out, merged, indent="", row_labels=N
 
 
 def _inspect_attention(
-    *, module, x, keys_merged, queries_merged, values_merged, keys, queries, values,
+    *, module, x, queries_merged, keys_merged, values_merged, queries, keys, values,
     raw_scores, mask_bool, scaled_scores, attn_weights, context_per_head, context_vec,
     out, verbose, show_data, token_labels, record_dict,
 ):

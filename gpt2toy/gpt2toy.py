@@ -41,13 +41,13 @@ class MultiHeadAttention(nn.Module):
             trace("attention_start", x=x)
         b, num_tokens, _ = x.shape
         # 线性投影（Linear Projection）：Q 用于发起查询，K 用于匹配，V 提供聚合内容。
-        keys_merged = self.W_key(x)
         queries_merged = self.W_query(x)
+        keys_merged = self.W_key(x)
         values_merged = self.W_value(x)
 
         # 分头（Split Heads）：[B,T,d_out] -> [B,H,T,d_h]，各头保留完整序列。
-        keys = keys_merged.view(b, num_tokens, self.num_heads, self.head_dim).transpose(1, 2)
         queries = queries_merged.view(b, num_tokens, self.num_heads, self.head_dim).transpose(1, 2)
+        keys = keys_merged.view(b, num_tokens, self.num_heads, self.head_dim).transpose(1, 2)
         values = values_merged.view(b, num_tokens, self.num_heads, self.head_dim).transpose(1, 2)
 
         # SDPA：Q @ K^T 产生 [B,H,T,T] 得分；因果掩码（Causal Mask）遮蔽未来。
@@ -69,8 +69,8 @@ class MultiHeadAttention(nn.Module):
         if trace is not None:
             trace(
                 "attention", module=self, x=x,
-                keys_merged=keys_merged, queries_merged=queries_merged, values_merged=values_merged,
-                keys=keys, queries=queries, values=values, raw_scores=raw_scores,
+                queries_merged=queries_merged, keys_merged=keys_merged, values_merged=values_merged,
+                queries=queries, keys=keys, values=values, raw_scores=raw_scores,
                 mask_bool=mask_bool, scaled_scores=scaled_scores, attn_weights=attn_weights,
                 context_per_head=context_per_head, context_vec=context_vec, out=out,
             )
